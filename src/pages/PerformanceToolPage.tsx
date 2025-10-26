@@ -8,7 +8,7 @@ interface PerformanceEntry {
   [key: string]: any;
 }
 
-export default PerformanceToolPage;
+// default export moved to bottom to avoid early export during SSR compile
 
 interface PerformanceData {
   type: string;
@@ -37,6 +37,14 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
 };
 
 export function PerformanceToolPage({ data }: { data: PerformanceData }) {
+  if (!data || !Array.isArray(data.data)) {
+    return (
+      <div style={{ padding: '20px', backgroundColor: '#121212', color: '#ffffff', minHeight: '100vh' }}>
+        <h1>Performance Tool</h1>
+        <p>No data available yet. Waiting for message from opener...</p>
+      </div>
+    );
+  }
   const [selectedEvent, setSelectedEvent] = useState<PerformanceEntry | null>(null);
   
   // Timeline-specific state
@@ -1966,4 +1974,13 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
       )}
     </div>
   );
+}
+
+export default PerformanceToolPage;
+
+export async function getStaticProps() {
+  const data = { type: 'placeholder', data: [] } as any;
+  return {
+    props: { data },
+  };
 }
