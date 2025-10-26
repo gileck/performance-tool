@@ -8,6 +8,8 @@ interface PerformanceEntry {
   [key: string]: any;
 }
 
+export default PerformanceToolPage;
+
 interface PerformanceData {
   type: string;
   data: PerformanceEntry[];
