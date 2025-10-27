@@ -74,6 +74,70 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   const [graphEndTime, setGraphEndTime] = useState<number | null>(null);
   const [showNegativeTimestamps, setShowNegativeTimestamps] = useState(false);
 
+  // Persist filter selections in localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('performance-tool:filters');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.timelineFilters)) {
+          setTimelineFilters(new Set(parsed.timelineFilters));
+        }
+        if (Array.isArray(parsed.selectedMarkNames)) {
+          setSelectedMarkNames(new Set(parsed.selectedMarkNames));
+        }
+        if (Array.isArray(parsed.tableFilters)) {
+          setTableFilters(new Set(parsed.tableFilters));
+        }
+        if (Array.isArray(parsed.visibleColumns)) {
+          setVisibleColumns(new Set(parsed.visibleColumns));
+        }
+        if (parsed.activeTab === 'timeline' || parsed.activeTab === 'table') {
+          setActiveTab(parsed.activeTab);
+        }
+        if (typeof parsed.showNegativeTimestamps === 'boolean') {
+          setShowNegativeTimestamps(parsed.showNegativeTimestamps);
+        }
+        if (typeof parsed.ssrTimeOffset === 'number') {
+          setSsrTimeOffset(parsed.ssrTimeOffset);
+        }
+        if (parsed.graphEndTime === null || typeof parsed.graphEndTime === 'number') {
+          setGraphEndTime(parsed.graphEndTime);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load saved filters:', err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    try {
+      const payload = {
+        timelineFilters: Array.from(timelineFilters),
+        selectedMarkNames: Array.from(selectedMarkNames),
+        tableFilters: Array.from(tableFilters),
+        visibleColumns: Array.from(visibleColumns),
+        activeTab,
+        showNegativeTimestamps,
+        ssrTimeOffset,
+        graphEndTime,
+      };
+      localStorage.setItem('performance-tool:filters', JSON.stringify(payload));
+    } catch (err) {
+      console.error('Failed to save filters:', err);
+    }
+  }, [
+    timelineFilters,
+    selectedMarkNames,
+    tableFilters,
+    visibleColumns,
+    activeTab,
+    showNegativeTimestamps,
+    ssrTimeOffset,
+    graphEndTime,
+  ]);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
