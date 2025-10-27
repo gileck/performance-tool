@@ -30,8 +30,25 @@ async function fetchSiteModels(siteUrl: string) {
 function usePerformanceData() {
   const [data, setData] = useState<any>(null);
   useEffect(() => {
+    const STORAGE_KEY = 'performance-tool:lastData';
+    let received = false;
+    const timeoutId = window.setTimeout(() => {
+      if (received) return;
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setData(parsed);
+        }
+      } catch (err) {
+        console.error('Failed to read saved performance data:', err);
+      }
+    }, 2000);
+
     const handler = async (event: MessageEvent) => {
       if (event.data?.type === 'performanceData') {
+        received = true;
+        window.clearTimeout(timeoutId);
         let enrichedData = event.data;
         const existingSiteUrl = enrichedData.siteModels?.publicModel?.externalBaseUrl;
         const incomingSiteUrl = enrichedData.siteUrl;
@@ -43,12 +60,20 @@ function usePerformanceData() {
             enrichedData = { ...enrichedData, siteModels };
           }
         }
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(enrichedData));
+        } catch (err) {
+          console.error('Failed to save performance data:', err);
+        }
         setData(enrichedData);
       }
     };
     window.addEventListener('message', handler as any);
     window.opener?.postMessage('opened', '*');
-    return () => window.removeEventListener('message', handler as any);
+    return () => {
+      window.removeEventListener('message', handler as any);
+      window.clearTimeout(timeoutId);
+    };
   }, []);
 
   return data;

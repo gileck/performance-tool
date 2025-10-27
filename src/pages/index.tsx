@@ -26,32 +26,56 @@ async function fetchSiteModels(siteUrl: string) {
 function usePerformanceData() {
   const [data, setData] = useState<any>(null);
   useEffect(() => {
-    window.addEventListener('message', async (event) => {
-      if (event.data.type === 'performanceData') {
-        console.log('performanceData', event.data);
-        
+    const STORAGE_KEY = 'performance-tool:lastData';
+    let received = false;
+    const timeoutId = window.setTimeout(() => {
+      if (received) return;
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setData(parsed);
+        }
+      } catch (err) {
+        console.error('Failed to read saved performance data:', err);
+      }
+    }, 2000);
+
+    const handler = async (event: MessageEvent) => {
+      if (event.data && event.data.type === 'performanceData') {
+        received = true;
+        window.clearTimeout(timeoutId);
+
         // If siteModels doesn't exist but we have a site URL, fetch it
         let enrichedData = event.data;
         const existingSiteUrl = enrichedData.siteModels?.publicModel?.externalBaseUrl;
-        const incomingSiteUrl = enrichedData.siteUrl; // Check if siteUrl is provided in the event data
-        
-        // If siteModels doesn't exist and we have a URL to fetch from
+        const incomingSiteUrl = enrichedData.siteUrl;
+
         if (!enrichedData.siteModels && (existingSiteUrl || incomingSiteUrl)) {
           const siteUrl = existingSiteUrl || incomingSiteUrl;
           const siteModels = await fetchSiteModels(siteUrl);
           if (siteModels) {
-            enrichedData = {
-              ...enrichedData,
-              siteModels,
-            };
+            enrichedData = { ...enrichedData, siteModels };
           }
         }
-        
+
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(enrichedData));
+        } catch (err) {
+          console.error('Failed to save performance data:', err);
+        }
+
         setData(enrichedData);
       }
-    });
+    };
+
+    window.addEventListener('message', handler as any);
     window.opener.postMessage('opened', '*');
 
+    return () => {
+      window.removeEventListener('message', handler as any);
+      window.clearTimeout(timeoutId);
+    };
   }, []);
 
   return data;
