@@ -303,7 +303,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     
     if (timelineFilters.has('all')) return eventsWithDuration;
     return eventsWithDuration.filter(e => timelineFilters.has(e.entryType));
-  }, [processedEvents, timelineFilters, graphEndTime, showNegativeTimestamps]);
+  }, [processedEvents, timelineFilters, graphEndTime, showNegativeTimestamps, minDurationMs]);
 
   // Timeline: Get paint/milestone events separately (these are rendered as vertical lines)
   const timelineMilestoneEvents = useMemo(() => {
@@ -349,7 +349,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     }
     
     return filtered;
-  }, [processedEvents, timelineFilters, selectedMarkNames, graphEndTime, showNegativeTimestamps]);
+  }, [processedEvents, timelineFilters, selectedMarkNames, graphEndTime, showNegativeTimestamps, minDurationMs]);
 
   // Table: Filter events (includes ALL events - no timestamp filtering)
   const tableFilteredEvents = useMemo(() => {
@@ -374,7 +374,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     }
     
     return events;
-  }, [processedEvents, tableFilters, tableSearchTerm]);
+  }, [processedEvents, tableFilters, tableSearchTerm, minDurationMs]);
 
   // Timeline: Handle filter toggle
   const toggleTimelineFilter = (type: string) => {
