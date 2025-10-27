@@ -5,12 +5,11 @@ export function formatTime(ms: number): string {
 
 export function formatBytes(bytes: number): string {
   const kb = bytes / 1024;
-  const mb = bytes / (1024 * 1024);
-  const kbStr = `${kb.toFixed(1)} KB`;
-  if (kb > 1000) {
-    return `${kbStr} (${mb.toFixed(2)} MB)`;
+  if (kb < 1000) {
+    return `${kb.toFixed(1)} KB`;
   }
-  return kbStr;
+  const mb = kb / 1024;
+  return `${mb.toFixed(2)} MB`;
 }
 
 export function formatEventName(name: string): string {

@@ -251,11 +251,14 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
             resourceFilterFileTypes={filters.resourceFilterFileTypes}
             resourceFilterServices={filters.resourceFilterServices}
             resourceFilterExtensions={filters.resourceFilterExtensions}
+            resourceFilterSubtypes={filters.resourceFilterSubtypes}
             resourceViewTab={filters.resourceViewTab}
             onFileTypeToggle={filterActions.toggleResourceFileType}
             onServiceToggle={filterActions.toggleResourceService}
             onExtensionToggle={filterActions.toggleResourceExtension}
+            onSubtypeToggle={filterActions.toggleResourceSubtype}
             onResourceViewTabChange={filterActions.setResourceViewTab}
+            onEventSelect={setSelectedEvent}
           />
         )}
 

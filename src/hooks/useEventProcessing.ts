@@ -148,6 +148,7 @@ export function useEventProcessing(options: ProcessingOptions): EventProcessingR
   const tableFilteredEvents = useMemo(() => {
     let events = [...processedEvents];
     
+    // Apply resource domain exclusions (global filter)
     if (resourceDomainFilters.length > 0) {
       events = events.filter(e => {
         if (e.entryType !== 'resource') return true;
@@ -157,9 +158,8 @@ export function useEventProcessing(options: ProcessingOptions): EventProcessingR
       });
     }
 
-    if (minDurationMs > 0) {
-      events = events.filter(e => e.duration >= minDurationMs);
-    }
+    // Note: minDurationMs is NOT applied to table - only to timeline
+    
     if (!tableFilters.has('all')) {
       events = events.filter(e => tableFilters.has(getEffectiveType(e, data.siteModels)));
     }
@@ -174,12 +174,25 @@ export function useEventProcessing(options: ProcessingOptions): EventProcessingR
     }
     
     return events;
-  }, [processedEvents, tableFilters, tableSearchTerm, minDurationMs, resourceDomainFilters, data.siteModels]);
+  }, [processedEvents, tableFilters, tableSearchTerm, resourceDomainFilters, data.siteModels]);
 
-  // Resource-only list
+  // Resource-only list - apply global settings filters
   const resourceEvents = useMemo(() => {
-    return processedEvents.filter(e => e.entryType === 'resource');
-  }, [processedEvents]);
+    let events = processedEvents.filter(e => e.entryType === 'resource');
+    
+    // Apply resource domain exclusions (global filter)
+    if (resourceDomainFilters.length > 0) {
+      events = events.filter(e => {
+        const nameLower = String(e.name || '').toLowerCase();
+        const matchesAny = resourceDomainFilters.some(f => nameLower.includes(f.toLowerCase()));
+        return !matchesAny; // exclude if matches any filter
+      });
+    }
+    
+    // Note: minDurationMs is NOT applied to resources - only to timeline
+    
+    return events;
+  }, [processedEvents, resourceDomainFilters]);
 
   return {
     processedEvents,

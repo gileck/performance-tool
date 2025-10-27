@@ -17,6 +17,7 @@ interface FilterState {
   resourceFilterFileTypes: Set<string>;
   resourceFilterServices: Set<string>;
   resourceFilterExtensions: Set<string>;
+  resourceFilterSubtypes: Set<string>;
   resourceViewTab: ResourceViewTab;
   
   // Settings
@@ -44,6 +45,7 @@ interface FilterActions {
   setResourceFilterFileTypes: (types: Set<string>) => void;
   setResourceFilterServices: (services: Set<string>) => void;
   setResourceFilterExtensions: (extensions: Set<string>) => void;
+  setResourceFilterSubtypes: (subtypes: Set<string>) => void;
   setResourceViewTab: (tab: ResourceViewTab) => void;
   setActiveTab: (tab: TabType) => void;
   setShowNegativeTimestamps: (show: boolean) => void;
@@ -68,6 +70,7 @@ interface FilterActions {
   toggleResourceFileType: (fileType: string) => void;
   toggleResourceService: (service: string) => void;
   toggleResourceExtension: (extension: string) => void;
+  toggleResourceSubtype: (subtype: string) => void;
   // Dropdown states
   setShowTimelineFilterDropdown: (show: boolean) => void;
   setShowTableFilterDropdown: (show: boolean) => void;
@@ -93,6 +96,7 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
   const [resourceFilterFileTypes, setResourceFilterFileTypes] = useState<Set<string>>(new Set(['all']));
   const [resourceFilterServices, setResourceFilterServices] = useState<Set<string>>(new Set(['all']));
   const [resourceFilterExtensions, setResourceFilterExtensions] = useState<Set<string>>(new Set(['all']));
+  const [resourceFilterSubtypes, setResourceFilterSubtypes] = useState<Set<string>>(new Set(['all']));
   const [resourceViewTab, setResourceViewTab] = useState<ResourceViewTab>('list');
   const [activeTab, setActiveTab] = useState<TabType>('timeline');
   const [showNegativeTimestamps, setShowNegativeTimestamps] = useState(false);
@@ -138,6 +142,9 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
         }
         if (Array.isArray(parsed.resourceFilterExtensions)) {
           setResourceFilterExtensions(new Set(parsed.resourceFilterExtensions));
+        }
+        if (Array.isArray(parsed.resourceFilterSubtypes)) {
+          setResourceFilterSubtypes(new Set(parsed.resourceFilterSubtypes));
         }
         if (typeof parsed.showNegativeTimestamps === 'boolean') {
           setShowNegativeTimestamps(parsed.showNegativeTimestamps);
@@ -201,6 +208,7 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
         resourceFilterFileTypes: Array.from(resourceFilterFileTypes),
         resourceFilterServices: Array.from(resourceFilterServices),
         resourceFilterExtensions: Array.from(resourceFilterExtensions),
+        resourceFilterSubtypes: Array.from(resourceFilterSubtypes),
         sortColumn,
         sortDirection,
         resourceViewTab,
@@ -227,6 +235,7 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
     resourceFilterFileTypes,
     resourceFilterServices,
     resourceFilterExtensions,
+    resourceFilterSubtypes,
     sortColumn,
     sortDirection,
     resourceViewTab,
@@ -243,6 +252,7 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
     resourceFilterFileTypes,
     resourceFilterServices,
     resourceFilterExtensions,
+    resourceFilterSubtypes,
     resourceViewTab,
     activeTab,
     showNegativeTimestamps,
@@ -367,6 +377,14 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
     setResourceFilterExtensions(ns);
   };
 
+  const toggleResourceSubtype = (subtype: string) => {
+    const ns = new Set(resourceFilterSubtypes);
+    ns.delete('all');
+    if (ns.has(subtype)) ns.delete(subtype); else ns.add(subtype);
+    if (ns.size === 0) ns.add('all');
+    setResourceFilterSubtypes(ns);
+  };
+
   const actions: FilterActions = {
     setTimelineFilters,
     setSelectedMarkNames,
@@ -378,6 +396,7 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
     setResourceFilterFileTypes,
     setResourceFilterServices,
     setResourceFilterExtensions,
+    setResourceFilterSubtypes,
     setResourceViewTab,
     setActiveTab,
     setShowNegativeTimestamps,
@@ -402,6 +421,7 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
     toggleResourceFileType,
     toggleResourceService,
     toggleResourceExtension,
+    toggleResourceSubtype,
     // Dropdown states
     setShowTimelineFilterDropdown,
     setShowTableFilterDropdown,

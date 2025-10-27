@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { PerformanceEntry, ResourceViewTab } from '../../../types/performance';
 import { getResourceExtras } from '../../../utils/resourceUtils';
 import { formatBytes } from '../../../utils/formatters';
@@ -8,11 +8,14 @@ interface ResourcesViewProps {
   resourceFilterFileTypes: Set<string>;
   resourceFilterServices: Set<string>;
   resourceFilterExtensions: Set<string>;
+  resourceFilterSubtypes: Set<string>;
   resourceViewTab: ResourceViewTab;
   onFileTypeToggle: (fileType: string) => void;
   onServiceToggle: (service: string) => void;
   onExtensionToggle: (extension: string) => void;
+  onSubtypeToggle: (subtype: string) => void;
   onResourceViewTabChange: (tab: ResourceViewTab) => void;
+  onEventSelect?: (event: PerformanceEntry) => void;
 }
 
 export function ResourcesView(props: ResourcesViewProps) {
@@ -21,14 +24,17 @@ export function ResourcesView(props: ResourcesViewProps) {
     resourceFilterFileTypes,
     resourceFilterServices,
     resourceFilterExtensions,
+    resourceFilterSubtypes,
     resourceViewTab,
     onFileTypeToggle,
     onServiceToggle,
     onExtensionToggle,
+    onSubtypeToggle,
     onResourceViewTabChange,
+    onEventSelect,
   } = props;
 
-  // Get all unique file types, services, and extensions
+  // Get all unique file types, services, extensions, and subtypes
   const fileTypes = useMemo(() => {
     return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, undefined).file_type).filter(Boolean) as string[]));
   }, [resourceEvents]);
@@ -41,30 +47,76 @@ export function ResourcesView(props: ResourcesViewProps) {
     return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, undefined).file_extension).filter(Boolean) as string[]));
   }, [resourceEvents]);
 
+  const subtypes = useMemo(() => {
+    return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, undefined).resource_subtype).filter(Boolean) as string[]));
+  }, [resourceEvents]);
+
   // Filter resources
   const filteredResources = useMemo(() => {
     return resourceEvents.filter(r => {
       const ex = getResourceExtras(r.name, undefined);
-      if (!resourceFilterFileTypes.has('all') && ex.file_type && !resourceFilterFileTypes.has(ex.file_type)) return false;
-      if (!resourceFilterServices.has('all') && ex.service && !resourceFilterServices.has(ex.service)) return false;
-      if (!resourceFilterExtensions.has('all') && ex.file_extension && !resourceFilterExtensions.has(ex.file_extension)) return false;
+      
+      // Subtype filter: if not 'all', only include resources with that exact subtype
+      if (!resourceFilterSubtypes.has('all')) {
+        if (!ex.resource_subtype || !resourceFilterSubtypes.has(ex.resource_subtype)) {
+          return false;
+        }
+      }
+      
+      // File type filter: if not 'all', only include resources with that file type
+      if (!resourceFilterFileTypes.has('all')) {
+        if (!ex.file_type || !resourceFilterFileTypes.has(ex.file_type)) {
+          return false;
+        }
+      }
+      
+      // Service filter: if not 'all', only include resources with that service
+      if (!resourceFilterServices.has('all')) {
+        if (!ex.service || !resourceFilterServices.has(ex.service)) {
+          return false;
+        }
+      }
+      
+      // Extension filter: if not 'all', only include resources with that extension
+      if (!resourceFilterExtensions.has('all')) {
+        if (!ex.file_extension || !resourceFilterExtensions.has(ex.file_extension)) {
+          return false;
+        }
+      }
+      
       return true;
     });
-  }, [resourceEvents, resourceFilterFileTypes, resourceFilterServices, resourceFilterExtensions]);
+  }, [resourceEvents, resourceFilterFileTypes, resourceFilterServices, resourceFilterExtensions, resourceFilterSubtypes]);
 
-  // Aggregate by service
+  // Track expanded services
+  const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
+
+  // Aggregate by service with resources
   const byService = useMemo(() => {
-    const map = new Map<string, { transfer: number; body: number; count: number }>();
+    const map = new Map<string, { transfer: number; body: number; count: number; resources: PerformanceEntry[] }>();
     filteredResources.forEach((r: any) => {
       const sv = getResourceExtras(r.name, undefined).service || 'other';
-      const curr = map.get(sv) || { transfer: 0, body: 0, count: 0 };
+      const curr = map.get(sv) || { transfer: 0, body: 0, count: 0, resources: [] };
       curr.transfer += r.transferSize || 0;
       curr.body += r.decodedBodySize || 0;
       curr.count += 1;
+      curr.resources.push(r);
       map.set(sv, curr);
     });
     return map;
   }, [filteredResources]);
+
+  const toggleService = (service: string) => {
+    setExpandedServices(prev => {
+      const next = new Set(prev);
+      if (next.has(service)) {
+        next.delete(service);
+      } else {
+        next.add(service);
+      }
+      return next;
+    });
+  };
 
   const totalTransfer = filteredResources.reduce((sum, r: any) => sum + (r.transferSize || 0), 0);
   const totalBody = filteredResources.reduce((sum, r: any) => sum + (r.decodedBodySize || 0), 0);
@@ -91,72 +143,95 @@ export function ResourcesView(props: ResourcesViewProps) {
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', backgroundColor: '#1a1a1a' }}>
       {/* Filters Panel */}
       <div style={{
-        width: '320px',
+        width: '250px',
         padding: '16px',
         backgroundColor: '#202020',
         borderRight: '1px solid #333',
+        overflowY: 'auto',
       }}>
-        <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '12px' }}>Filters</div>
+        <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '16px' }}>Filters</div>
         
-        {/* File Types */}
-        {fileTypes.length > 0 && (
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '6px' }}>File Type</div>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {/* Subtypes Section */}
+          {subtypes.length > 0 && (
+            <>
+              <div style={{ color: '#aaa', fontSize: '11px', fontWeight: 'bold', marginTop: '8px', marginBottom: '4px', textTransform: 'uppercase' }}>
+                Type
+              </div>
+              {subtypes.map(st => (
+                <label key={`st-${st}`} style={{ color: '#ddd', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', paddingLeft: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={resourceFilterSubtypes.has('all') || resourceFilterSubtypes.has(st)}
+                    onChange={() => onSubtypeToggle(st)}
+                    style={{ marginRight: '8px' }}
+                  />
+                  {st}
+                </label>
+              ))}
+            </>
+          )}
+
+          {/* File Types Section */}
+          {fileTypes.length > 0 && (
+            <>
+              <div style={{ color: '#aaa', fontSize: '11px', fontWeight: 'bold', marginTop: '16px', marginBottom: '4px', textTransform: 'uppercase' }}>
+                File Type
+              </div>
               {fileTypes.map(ft => (
-                <label key={ft} style={{ color: '#ddd', fontSize: '12px', cursor: 'pointer' }}>
+                <label key={`ft-${ft}`} style={{ color: '#ddd', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', paddingLeft: '8px' }}>
                   <input
                     type="checkbox"
                     checked={resourceFilterFileTypes.has('all') || resourceFilterFileTypes.has(ft)}
                     onChange={() => onFileTypeToggle(ft)}
-                    style={{ marginRight: '6px' }}
+                    style={{ marginRight: '8px' }}
                   />
                   {ft}
                 </label>
               ))}
-            </div>
-          </div>
-        )}
-        
-        {/* Services */}
-        {services.length > 0 && (
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '6px' }}>Service</div>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            </>
+          )}
+          
+          {/* Services Section */}
+          {services.length > 0 && (
+            <>
+              <div style={{ color: '#aaa', fontSize: '11px', fontWeight: 'bold', marginTop: '16px', marginBottom: '4px', textTransform: 'uppercase' }}>
+                Service
+              </div>
               {services.map(sv => (
-                <label key={sv} style={{ color: '#ddd', fontSize: '12px', cursor: 'pointer' }}>
+                <label key={`sv-${sv}`} style={{ color: '#ddd', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', paddingLeft: '8px' }}>
                   <input
                     type="checkbox"
                     checked={resourceFilterServices.has('all') || resourceFilterServices.has(sv)}
                     onChange={() => onServiceToggle(sv)}
-                    style={{ marginRight: '6px' }}
+                    style={{ marginRight: '8px' }}
                   />
                   {sv}
                 </label>
               ))}
-            </div>
-          </div>
-        )}
-        
-        {/* Extensions */}
-        {extensions.length > 0 && (
-          <div>
-            <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '6px' }}>Extension</div>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            </>
+          )}
+          
+          {/* Extensions Section */}
+          {extensions.length > 0 && (
+            <>
+              <div style={{ color: '#aaa', fontSize: '11px', fontWeight: 'bold', marginTop: '16px', marginBottom: '4px', textTransform: 'uppercase' }}>
+                Extension
+              </div>
               {extensions.map(ext => (
-                <label key={ext} style={{ color: '#ddd', fontSize: '12px', cursor: 'pointer' }}>
+                <label key={`ext-${ext}`} style={{ color: '#ddd', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', paddingLeft: '8px' }}>
                   <input
                     type="checkbox"
                     checked={resourceFilterExtensions.has('all') || resourceFilterExtensions.has(ext)}
                     onChange={() => onExtensionToggle(ext)}
-                    style={{ marginRight: '6px' }}
+                    style={{ marginRight: '8px' }}
                   />
                   .{ext}
                 </label>
               ))}
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Content Area */}
@@ -240,15 +315,81 @@ export function ResourcesView(props: ResourcesViewProps) {
                 </tr>
               </thead>
               <tbody>
-                {entries.sort((a,b) => b[1].transfer - a[1].transfer).map(([sv, v]) => (
-                  <tr key={sv}>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #2a2a2a' }}>{sv}</td>
-                    <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{v.count}</td>
-                    <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{formatBytes(v.transfer)}</td>
-                    <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{formatBytes(v.body)}</td>
-                    <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{((v.transfer/totalForPie)*100).toFixed(1)}%</td>
-                  </tr>
-                ))}
+                {entries.sort((a,b) => b[1].transfer - a[1].transfer).map(([sv, v]) => {
+                  const isExpanded = expandedServices.has(sv);
+                  // Sort resources by transfer size (largest first)
+                  const sortedResources = [...v.resources].sort((a: any, b: any) => 
+                    (b.transferSize || 0) - (a.transferSize || 0)
+                  );
+                  return (
+                    <>
+                      <tr key={sv} style={{ cursor: 'pointer' }} onClick={() => toggleService(sv)}>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #2a2a2a' }}>
+                          <span style={{ marginRight: '6px' }}>{isExpanded ? '▼' : '▶'}</span>
+                          {sv}
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{v.count}</td>
+                        <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{formatBytes(v.transfer)}</td>
+                        <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{formatBytes(v.body)}</td>
+                        <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{((v.transfer/totalForPie)*100).toFixed(1)}%</td>
+                      </tr>
+                      {isExpanded && sortedResources.map((resource: any, idx: number) => {
+                        return (
+                          <tr 
+                            key={`${sv}-${idx}`} 
+                            style={{ 
+                              backgroundColor: '#1a1a1a', 
+                              cursor: onEventSelect ? 'pointer' : 'default',
+                              transition: 'background-color 0.15s'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onEventSelect) {
+                                onEventSelect(resource);
+                              }
+                            }}
+                            onMouseEnter={(e) => {
+                              if (onEventSelect) {
+                                e.currentTarget.style.backgroundColor = '#252525';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#1a1a1a';
+                            }}
+                          >
+                            <td 
+                              style={{ 
+                                padding: '8px 8px 8px 32px', 
+                                borderBottom: '1px solid #2a2a2a', 
+                                fontSize: '11px', 
+                                color: '#aaa',
+                                maxWidth: '500px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title={resource.name}
+                            >
+                              {resource.name}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a', fontSize: '11px', color: '#aaa' }}>
+                              -
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a', fontSize: '11px', color: '#ddd' }}>
+                              {formatBytes(resource.transferSize || 0)}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a', fontSize: '11px', color: '#ddd' }}>
+                              {formatBytes(resource.decodedBodySize || 0)}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a', fontSize: '11px', color: '#aaa' }}>
+                              {totalTransfer > 0 ? ((resource.transferSize || 0) / totalTransfer * 100).toFixed(1) : '0.0'}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </>
+                  );
+                })}
               </tbody>
             </table>
           )}
