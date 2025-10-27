@@ -29,6 +29,7 @@ async function fetchSiteModels(siteUrl: string) {
 
 function usePerformanceData() {
   const [data, setData] = useState<any>(null);
+  const [dataSource, setDataSource] = useState<null | 'fresh' | 'local'>(null);
   useEffect(() => {
     const STORAGE_KEY = 'performance-tool:lastData';
     let received = false;
@@ -39,6 +40,7 @@ function usePerformanceData() {
         if (saved) {
           const parsed = JSON.parse(saved);
           setData(parsed);
+          setDataSource('local');
         }
       } catch (err) {
         console.error('Failed to read saved performance data:', err);
@@ -66,6 +68,7 @@ function usePerformanceData() {
           console.error('Failed to save performance data:', err);
         }
         setData(enrichedData);
+        setDataSource('fresh');
       }
     };
     window.addEventListener('message', handler as any);
@@ -76,13 +79,29 @@ function usePerformanceData() {
     };
   }, []);
 
-  return data;
+  return { data, dataSource };
 }
 
 export default function PerformanceAnalyzerClient() {
-  const data = usePerformanceData();
+  const { data, dataSource } = usePerformanceData();
   if (!data) return <div>Loading...</div>;
-  return <PerformanceToolPageClient data={data} />;
+  return (
+    <div>
+      {dataSource && (
+        <div
+          style={{
+            padding: '8px 12px',
+            backgroundColor: dataSource === 'fresh' ? '#123d2a' : '#4a350f',
+            color: dataSource === 'fresh' ? '#9FE6A0' : '#FFD27D',
+            borderBottom: '1px solid #333'
+          }}
+        >
+          {dataSource === 'fresh' ? 'Using fresh performance data' : 'Using cached performance data from local storage'}
+        </div>
+      )}
+      <PerformanceToolPageClient data={data} />
+    </div>
+  );
 }
 
 
