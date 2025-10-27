@@ -1,7 +1,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 
-const PerformanceToolPageClient = dynamic(() => import('../PerformanceToolPage'), {
+const PerformanceToolPageClient = dynamic(() => import('./PerformanceToolPage'), {
   ssr: false,
 });
 
@@ -54,7 +54,7 @@ function usePerformanceData() {
   return data;
 }
 
-export default function PerformanceToolClientWrapper() {
+export default function PerformanceAnalyzerClient() {
   const data = usePerformanceData();
   if (!data) return <div>Loading...</div>;
   return <PerformanceToolPageClient data={data} />;
