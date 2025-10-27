@@ -73,6 +73,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   const [ssrTimeOffset, setSsrTimeOffset] = useState(0);
   const [graphEndTime, setGraphEndTime] = useState<number | null>(null);
   const [showNegativeTimestamps, setShowNegativeTimestamps] = useState(false);
+  const [minDurationMs, setMinDurationMs] = useState(0);
 
   // Persist filter selections in localStorage
   useEffect(() => {
@@ -104,6 +105,9 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
         if (parsed.graphEndTime === null || typeof parsed.graphEndTime === 'number') {
           setGraphEndTime(parsed.graphEndTime);
         }
+        if (typeof parsed.minDurationMs === 'number') {
+          setMinDurationMs(parsed.minDurationMs);
+        }
       }
     } catch (err) {
       console.error('Failed to load saved filters:', err);
@@ -122,6 +126,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
         showNegativeTimestamps,
         ssrTimeOffset,
         graphEndTime,
+        minDurationMs,
       };
       localStorage.setItem('performance-tool:filters', JSON.stringify(payload));
     } catch (err) {
@@ -136,6 +141,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     showNegativeTimestamps,
     ssrTimeOffset,
     graphEndTime,
+    minDurationMs,
   ]);
 
   // Close dropdowns when clicking outside
@@ -285,6 +291,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   const timelineFilteredEvents = useMemo(() => {
     let eventsWithDuration = processedEvents.filter(e => {
       if (e.duration <= 0) return false;
+      if (minDurationMs > 0 && e.duration < minDurationMs) return false;
       if (!showNegativeTimestamps && e.startTime < 0) return false;
       return true;
     });
@@ -303,6 +310,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     let milestones = processedEvents.filter(e => {
       if (!showNegativeTimestamps && e.startTime < 0) return false; // Exclude negative timestamps (unless enabled)
       if (e.duration > 0) return false; // Only events with duration 0
+      if (minDurationMs > 0 && e.duration < minDurationMs) return false; // duration is 0 for milestones, so this only hides if threshold is 0
       
       // Include paint and LCP events
       if (e.entryType === 'paint' || e.entryType === 'largest-contentful-paint') {
@@ -347,7 +355,10 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   const tableFilteredEvents = useMemo(() => {
     let events = [...processedEvents]; // Include all events, even with negative timestamps
     
-    // Apply type filters
+    // Apply duration and type filters
+    if (minDurationMs > 0) {
+      events = events.filter(e => e.duration >= minDurationMs);
+    }
     if (!tableFilters.has('all')) {
       events = events.filter(e => tableFilters.has(e.entryType));
     }
@@ -1251,6 +1262,23 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                     }} />
                   <div style={{ color: '#888', fontSize: '12px', marginTop: '6px' }}>
                     Adds this value to startTime of all SSR events. Use to fix negative SSR timestamps.
+                  </div>
+                </div>
+
+                {/* Minimum Duration */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', color: '#ccc', marginBottom: '6px' }}>Minimum event duration (ms)</label>
+                  <input
+                    type="number"
+                    value={minDurationMs}
+                    onChange={(e) => setMinDurationMs(Math.max(0, Number(e.target.value) || 0))}
+                    placeholder="e.g. 5"
+                    style={{
+                      width: '100%', padding: '8px 10px', backgroundColor: '#111', color: '#fff', border: '1px solid #333', borderRadius: '6px'
+                    }}
+                  />
+                  <div style={{ color: '#888', fontSize: '12px', marginTop: '6px' }}>
+                    Hides events whose duration is less than this value.
                   </div>
                 </div>
 
