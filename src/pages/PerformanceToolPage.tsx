@@ -24,6 +24,8 @@ interface PerformanceData {
 const EVENT_TYPE_COLORS: Record<string, string> = {
   'navigation': '#FF6B6B',
   'resource': '#4ECDC4',
+  'resource:file': '#4A90E2',
+  'resource:api': '#F5A623',
   'mark': '#FFE66D',
   'measure': '#95E1D3',
   'paint': '#F38181',
@@ -61,12 +63,17 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   // Table-specific state
   const [tableFilters, setTableFilters] = useState<Set<string>>(new Set(['all']));
   const [showTableFilterDropdown, setShowTableFilterDropdown] = useState(false);
-  const [activeTab, setActiveTab] = useState<'timeline' | 'table'>('timeline');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'table' | 'resources'>('timeline');
   const [sortColumn, setSortColumn] = useState<string>('startTime');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['name', 'entryType', 'startTime', 'duration']));
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [tableSearchTerm, setTableSearchTerm] = useState('');
+  // Resources tab filters
+  const [resourceFilterFileTypes, setResourceFilterFileTypes] = useState<Set<string>>(new Set(['all']));
+  const [resourceFilterServices, setResourceFilterServices] = useState<Set<string>>(new Set(['all']));
+  const [resourceFilterExtensions, setResourceFilterExtensions] = useState<Set<string>>(new Set(['all']));
+  const [resourceViewTab, setResourceViewTab] = useState<'list' | 'pie'>('list');
 
   // Settings state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -74,6 +81,9 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   const [graphEndTime, setGraphEndTime] = useState<number | null>(null);
   const [showNegativeTimestamps, setShowNegativeTimestamps] = useState(false);
   const [minDurationMs, setMinDurationMs] = useState(0);
+  const [resourceDomainFilters, setResourceDomainFilters] = useState<string[]>([]);
+  const [resourceDomainInput, setResourceDomainInput] = useState('');
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // Persist filter selections in localStorage
   useEffect(() => {
@@ -93,8 +103,17 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
         if (Array.isArray(parsed.visibleColumns)) {
           setVisibleColumns(new Set(parsed.visibleColumns));
         }
-        if (parsed.activeTab === 'timeline' || parsed.activeTab === 'table') {
+        if (parsed.activeTab === 'timeline' || parsed.activeTab === 'table' || parsed.activeTab === 'resources') {
           setActiveTab(parsed.activeTab);
+        }
+        if (Array.isArray(parsed.resourceFilterFileTypes)) {
+          setResourceFilterFileTypes(new Set(parsed.resourceFilterFileTypes));
+        }
+        if (Array.isArray(parsed.resourceFilterServices)) {
+          setResourceFilterServices(new Set(parsed.resourceFilterServices));
+        }
+        if (Array.isArray(parsed.resourceFilterExtensions)) {
+          setResourceFilterExtensions(new Set(parsed.resourceFilterExtensions));
         }
         if (typeof parsed.showNegativeTimestamps === 'boolean') {
           setShowNegativeTimestamps(parsed.showNegativeTimestamps);
@@ -108,14 +127,29 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
         if (typeof parsed.minDurationMs === 'number') {
           setMinDurationMs(parsed.minDurationMs);
         }
+        if (Array.isArray(parsed.resourceDomainFilters)) {
+          setResourceDomainFilters(parsed.resourceDomainFilters.filter((s: any) => typeof s === 'string'));
+        }
+        if (typeof parsed.zoomLevel === 'number') {
+          setZoomLevel(Math.max(0.5, Math.min(10, parsed.zoomLevel)));
+        }
+        if (typeof parsed.panOffset === 'number') {
+          setPanOffset(parsed.panOffset);
+        }
+        if (typeof parsed.tableSearchTerm === 'string') {
+          setTableSearchTerm(parsed.tableSearchTerm);
+        }
       }
+      setSettingsLoaded(true);
     } catch (err) {
       console.error('Failed to load saved filters:', err);
+      setSettingsLoaded(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    if (!settingsLoaded) return;
     try {
       const payload = {
         timelineFilters: Array.from(timelineFilters),
@@ -127,12 +161,20 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
         ssrTimeOffset,
         graphEndTime,
         minDurationMs,
+        resourceDomainFilters,
+        zoomLevel,
+        panOffset,
+        tableSearchTerm,
+        resourceFilterFileTypes: Array.from(resourceFilterFileTypes),
+        resourceFilterServices: Array.from(resourceFilterServices),
+        resourceFilterExtensions: Array.from(resourceFilterExtensions),
       };
       localStorage.setItem('performance-tool:filters', JSON.stringify(payload));
     } catch (err) {
       console.error('Failed to save filters:', err);
     }
   }, [
+    settingsLoaded,
     timelineFilters,
     selectedMarkNames,
     tableFilters,
@@ -142,6 +184,13 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     ssrTimeOffset,
     graphEndTime,
     minDurationMs,
+    resourceDomainFilters,
+    zoomLevel,
+    panOffset,
+    tableSearchTerm,
+    resourceFilterFileTypes,
+    resourceFilterServices,
+    resourceFilterExtensions,
   ]);
 
   // Close dropdowns when clicking outside
@@ -258,7 +307,8 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   const eventTypes = useMemo(() => {
     const typeCounts = new Map<string, number>();
     processedEvents.forEach(e => {
-      typeCounts.set(e.entryType, (typeCounts.get(e.entryType) || 0) + 1);
+      const t = getEffectiveType(e);
+      typeCounts.set(t, (typeCounts.get(t) || 0) + 1);
     });
     return Array.from(typeCounts.entries())
       .map(([type, count]) => ({ type, count }))
@@ -293,6 +343,11 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
       if (e.duration <= 0) return false;
       if (minDurationMs > 0 && e.duration < minDurationMs) return false;
       if (!showNegativeTimestamps && e.startTime < 0) return false;
+      if (resourceDomainFilters.length > 0 && e.entryType === 'resource') {
+        const nameLower = String(e.name || '').toLowerCase();
+        const matchesAny = resourceDomainFilters.some(f => nameLower.includes(f.toLowerCase()));
+        if (matchesAny) return false; // blacklist: exclude matching resources
+      }
       return true;
     });
     
@@ -302,7 +357,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     }
     
     if (timelineFilters.has('all')) return eventsWithDuration;
-    return eventsWithDuration.filter(e => timelineFilters.has(e.entryType));
+    return eventsWithDuration.filter(e => timelineFilters.has(getEffectiveType(e)));
   }, [processedEvents, timelineFilters, graphEndTime, showNegativeTimestamps, minDurationMs]);
 
   // Timeline: Get paint/milestone events separately (these are rendered as vertical lines)
@@ -310,7 +365,6 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     let milestones = processedEvents.filter(e => {
       if (!showNegativeTimestamps && e.startTime < 0) return false; // Exclude negative timestamps (unless enabled)
       if (e.duration > 0) return false; // Only events with duration 0
-      if (minDurationMs > 0 && e.duration < minDurationMs) return false; // duration is 0 for milestones, so this only hides if threshold is 0
       
       // Include paint and LCP events
       if (e.entryType === 'paint' || e.entryType === 'largest-contentful-paint') {
@@ -323,7 +377,9 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
         const isStartedEnded = nameLower.endsWith(' started') || 
                                nameLower.endsWith(' ended') || 
                                nameLower.endsWith(' finished');
-        return !isStartedEnded;
+        if (isStartedEnded) return false;
+        // Always include 0-duration standalone marks as milestones
+        return true;
       }
       
       return false;
@@ -337,7 +393,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     // Apply entry type filter
     let filtered = milestones;
     if (!timelineFilters.has('all')) {
-      filtered = filtered.filter(e => timelineFilters.has(e.entryType));
+      filtered = filtered.filter(e => timelineFilters.has(getEffectiveType(e)));
     }
     
     // Apply mark name filter
@@ -355,12 +411,22 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   const tableFilteredEvents = useMemo(() => {
     let events = [...processedEvents]; // Include all events, even with negative timestamps
     
+    // Apply resource domain filters
+    if (resourceDomainFilters.length > 0) {
+      events = events.filter(e => {
+        if (e.entryType !== 'resource') return true;
+        const nameLower = String(e.name || '').toLowerCase();
+        const matchesAny = resourceDomainFilters.some(f => nameLower.includes(f.toLowerCase()));
+        return !matchesAny; // blacklist: keep only non-matching resources
+      });
+    }
+
     // Apply duration and type filters
     if (minDurationMs > 0) {
       events = events.filter(e => e.duration >= minDurationMs);
     }
     if (!tableFilters.has('all')) {
-      events = events.filter(e => tableFilters.has(e.entryType));
+      events = events.filter(e => tableFilters.has(getEffectiveType(e)));
     }
     
     // Apply search filter
@@ -374,7 +440,12 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     }
     
     return events;
-  }, [processedEvents, tableFilters, tableSearchTerm, minDurationMs]);
+  }, [processedEvents, tableFilters, tableSearchTerm, minDurationMs, resourceDomainFilters]);
+
+  // Resource-only list for Resources tab
+  const resourceEvents = useMemo(() => {
+    return processedEvents.filter(e => e.entryType === 'resource') as any[];
+  }, [processedEvents]);
 
   // Timeline: Handle filter toggle
   const toggleTimelineFilter = (type: string) => {
@@ -504,6 +575,124 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   const getEventColor = (entryType: string) => {
     return EVENT_TYPE_COLORS[entryType] || EVENT_TYPE_COLORS.default;
   };
+
+  // Display helpers
+  const getDisplayResourceName = (name: string) => {
+    const base = data.siteModels?.publicModel?.externalBaseUrl;
+    if (!base) return name;
+    try {
+      const variants: string[] = [];
+      const withSlash = base.endsWith('/') ? base : base + '/';
+      const withoutSlash = base.endsWith('/') ? base.slice(0, -1) : base;
+      variants.push(withSlash, withoutSlash);
+      try {
+        const u = new URL(base);
+        variants.push(u.origin, u.origin + '/');
+      } catch {}
+      for (const v of variants) {
+        if (name.startsWith(v)) {
+          const rest = name.slice(v.length).replace(/^\/+/, '');
+          return rest || '/';
+        }
+      }
+      return name;
+    } catch {
+      return name;
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    const kb = bytes / 1024;
+    const mb = bytes / (1024 * 1024);
+    const kbStr = `${kb.toFixed(1)} KB`;
+    if (kb > 1000) {
+      return `${kbStr} (${mb.toFixed(2)} MB)`;
+    }
+    return kbStr;
+  };
+
+  // Resource subtype/helpers
+  function getResourceExtras(name: string) {
+    const extras: any = {};
+    try {
+      const staticPrefix = 'https://static.parastorage.com';
+      if (name.startsWith(staticPrefix)) {
+        // File subtype
+        extras.resource_subtype = 'File';
+        try {
+          const u = new URL(name);
+          const pathSegs = u.pathname.split('/').filter(Boolean);
+          const fileName = (pathSegs[pathSegs.length - 1] || '').trim();
+          // file_type is the first segment after the host
+          if (pathSegs.length >= 1) {
+            extras.file_type = pathSegs[0];
+            if (extras.file_type === 'services' && pathSegs.length >= 2) {
+              // service is the segment after 'services'
+              extras.service = pathSegs[1];
+            }
+          }
+          if (fileName) {
+            extras.file_name = fileName;
+            const dotIdx = fileName.lastIndexOf('.');
+            if (dotIdx > 0 && dotIdx < fileName.length - 1) {
+              extras.file_extension = fileName.substring(dotIdx + 1).toLowerCase();
+            }
+          }
+        } catch {}
+        return extras;
+      }
+
+      // Site API subtype
+      const base = data.siteModels?.publicModel?.externalBaseUrl;
+      if (base) {
+        const variants: string[] = [];
+        const withSlash = base.endsWith('/') ? base : base + '/';
+        const withoutSlash = base.endsWith('/') ? base.slice(0, -1) : base;
+        variants.push(withSlash + '_api/', withoutSlash + '/_api/');
+        try {
+          const bu = new URL(base);
+          variants.push(bu.origin + '/_api/');
+        } catch {}
+
+        for (const pref of variants) {
+          if (name.startsWith(pref)) {
+            extras.resource_subtype = 'API';
+            // Extract api name (first segment after _api/)
+            try {
+              const u = new URL(name);
+              const path = u.pathname; // begins with /
+              const idx = path.indexOf('/_api/');
+              if (idx >= 0) {
+                const rest = path.substring(idx + 6); // after '/_api/'
+                const seg = rest.split('/')[0];
+                if (seg) extras.api_name = seg;
+              }
+            } catch {
+              // Fallback for non-absolute
+              const idx2 = name.indexOf('/_api/');
+              if (idx2 >= 0) {
+                const rest = name.substring(idx2 + 6);
+                const seg = rest.split('/')[0];
+                if (seg) extras.api_name = seg;
+              }
+            }
+            return extras;
+          }
+        }
+      }
+    } catch {}
+    return extras;
+  }
+
+  function getEffectiveType(e: PerformanceEntry) {
+    if (e.entryType === 'resource') {
+      const ex = getResourceExtras(e.name);
+      if (ex.resource_subtype === 'File') return 'resource:file';
+      if (ex.resource_subtype === 'API') return 'resource:api';
+      return 'resource';
+    }
+    return e.entryType;
+  }
 
   // Calculate event positions with smart stacking to avoid overlaps (for timeline)
   const eventsWithPositions = useMemo(() => {
@@ -1132,8 +1321,8 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
           }}>
             <span style={{ fontSize: '12px', fontWeight: '500', color: '#888' }}>Legend:</span>
             {eventTypes.map(({ type, count }) => {
-                const filteredCount = timelineFilteredEvents.filter(e => e.entryType === type).length;
-                const milestoneCount = timelineMilestoneEvents.filter(e => e.entryType === type).length;
+                const filteredCount = timelineFilteredEvents.filter(e => getEffectiveType(e) === type).length;
+                const milestoneCount = timelineMilestoneEvents.filter(e => getEffectiveType(e) === type).length;
                 const totalCount = filteredCount + milestoneCount;
                 const isMilestone = type === 'paint' || type === 'largest-contentful-paint';
                 
@@ -1216,6 +1405,22 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
           >
             Events Table
           </button>
+          <button
+            onClick={() => setActiveTab('resources')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              backgroundColor: activeTab === 'resources' ? '#252525' : '#202020',
+              color: activeTab === 'resources' ? '#fff' : '#888',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: activeTab === 'resources' ? 'bold' : 'normal',
+              borderBottom: activeTab === 'resources' ? '2px solid #4ECDC4' : '2px solid transparent',
+              transition: 'all 0.2s',
+            }}
+          >
+            Resources
+          </button>
         </div>
       </div>
 
@@ -1279,6 +1484,60 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                   />
                   <div style={{ color: '#888', fontSize: '12px', marginTop: '6px' }}>
                     Hides events whose duration is less than this value.
+                  </div>
+                </div>
+
+                {/* Resource Domain Filters (Blacklist) */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', color: '#ccc', marginBottom: '6px' }}>Resource domains to exclude</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={resourceDomainInput}
+                      onChange={(e) => setResourceDomainInput(e.target.value)}
+                      placeholder="e.g. cdn.example.com or 'google'"
+                      style={{ flex: 1, padding: '8px 10px', backgroundColor: '#111', color: '#fff', border: '1px solid #333', borderRadius: '6px' }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = resourceDomainInput.trim();
+                          if (val && !resourceDomainFilters.includes(val)) {
+                            setResourceDomainFilters([...resourceDomainFilters, val]);
+                            setResourceDomainInput('');
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        const val = resourceDomainInput.trim();
+                        if (val && !resourceDomainFilters.includes(val)) {
+                          setResourceDomainFilters([...resourceDomainFilters, val]);
+                          setResourceDomainInput('');
+                        }
+                      }}
+                      style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #444', backgroundColor: '#333', color: '#fff', cursor: 'pointer', fontSize: '12px' }}
+                    >
+                      Exclude
+                    </button>
+                  </div>
+                  {resourceDomainFilters.length > 0 && (
+                    <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {resourceDomainFilters.map((f, idx) => (
+                        <span key={`${f}-${idx}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 8px', backgroundColor: '#1f1f1f', border: '1px solid #333', borderRadius: '12px', color: '#ddd', fontSize: '12px' }}>
+                          {f}
+                          <button
+                            onClick={() => setResourceDomainFilters(resourceDomainFilters.filter((x) => x !== f))}
+                            style={{ background: 'transparent', border: 'none', color: '#999', cursor: 'pointer', fontSize: '12px' }}
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ color: '#888', fontSize: '12px', marginTop: '6px' }}>
+                    Resource events whose name includes any of these values will be hidden. Leave empty to show all resources.
                   </div>
                 </div>
 
@@ -1416,9 +1675,10 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                   const maxChars = Math.floor(width / 6); // Approximate chars that fit
                   if (maxChars < 5) return '';
                   
-                  const name = event.name.length > maxChars 
-                    ? event.name.substring(0, maxChars - 3) + '...'
-                    : event.name;
+                  const raw = event.entryType === 'resource' ? getDisplayResourceName(event.name) : event.name;
+                  const name = raw.length > maxChars 
+                    ? raw.substring(0, maxChars - 3) + '...'
+                    : raw;
                   return name;
                 };
 
@@ -1434,7 +1694,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                       top: `${top}px`,
                       width: `${width}px`,
                       height: '28px',
-                      backgroundColor: getEventColor(event.entryType),
+                      backgroundColor: getEventColor(getEffectiveType(event)),
                       border: selectedEvent === event ? '2px solid #fff' : '1px solid rgba(0,0,0,0.3)',
                       borderRadius: '4px',
                       cursor: 'pointer',
@@ -1452,9 +1712,42 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                       transform: hoveredEvent === event ? 'scale(1.05)' : 'scale(1)',
                       zIndex: hoveredEvent === event ? 100 : 1,
                     }}
-                    title={event.name}
+                    title={event.entryType === 'resource' ? getDisplayResourceName(event.name) : event.name}
                   >
                     {getDisplayText()}
+                    {event.entryType === 'resource' && (
+                      <span style={{
+                        marginLeft: '6px',
+                        fontSize: '10px',
+                        color: 'rgba(0,0,0,0.7)'
+                      }}>
+                        {(() => {
+                          const ex = getResourceExtras(event.name);
+                          return ex.resource_subtype === 'File' && ex.file_extension ? `.${ex.file_extension}` : ex.resource_subtype === 'API' && ex.api_name ? `API:${ex.api_name}` : '';
+                        })()}
+                      </span>
+                    )}
+                    {hoveredEvent === event && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: '50%',
+                          top: '-22px',
+                          transform: 'translateX(-50%)',
+                          padding: '2px 6px',
+                          backgroundColor: 'rgba(0,0,0,0.9)',
+                          color: '#fff',
+                          fontSize: '10px',
+                          border: '1px solid #444',
+                          borderRadius: '3px',
+                          pointerEvents: 'none',
+                          zIndex: 200,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {formatTime(event.duration)}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1462,7 +1755,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
               {/* Milestone events (paint, LCP, etc.) as vertical lines */}
               {timelineMilestoneEvents.map((event, index) => {
                 const left = timeToPixels(event.startTime);
-                const color = getEventColor(event.entryType);
+                const color = getEventColor(getEffectiveType(event));
                 
                 return (
                   <div
@@ -1498,9 +1791,9 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                         pointerEvents: 'auto',
                         zIndex: hoveredEvent === event ? 100 : 10,
                       }}
-                      title={event.name}
+                      title={event.entryType === 'resource' ? getDisplayResourceName(event.name) : event.name}
                     >
-                      {event.name}
+                      {event.entryType === 'resource' ? getDisplayResourceName(event.name) : event.name}
                     </div>
                     {/* Vertical line */}
                     <div
@@ -1819,7 +2112,11 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                         } else if (typeof value === 'object') {
                           displayValue = JSON.stringify(value);
                         } else {
-                          displayValue = String(value);
+                          if (column === 'name' && event.entryType === 'resource') {
+                            displayValue = getDisplayResourceName(String(value));
+                          } else {
+                            displayValue = String(value);
+                          }
                         }
                         
                         return (
@@ -1844,6 +2141,197 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Resources View */}
+        {activeTab === 'resources' && (
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', backgroundColor: '#1a1a1a' }}>
+            {/* Resource Filters */}
+            <div style={{
+              width: '320px',
+              padding: '16px',
+              backgroundColor: '#202020',
+              borderRight: '1px solid #333',
+            }}>
+              <div style={{ color: '#fff', fontWeight: 'bold', marginBottom: '12px' }}>Filters</div>
+              {/* File Types */}
+              <div>
+                <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '6px' }}>File Type</div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name).file_type).filter(Boolean) as string[])).map(ft => (
+                    <label key={ft} style={{ color: '#ddd', fontSize: '12px' }}>
+                      <input
+                        type="checkbox"
+                        checked={resourceFilterFileTypes.has('all') || resourceFilterFileTypes.has(ft)}
+                        onChange={() => {
+                          const ns = new Set(resourceFilterFileTypes);
+                          ns.delete('all');
+                          if (ns.has(ft)) ns.delete(ft); else ns.add(ft);
+                          if (ns.size === 0) ns.add('all');
+                          setResourceFilterFileTypes(ns);
+                        }}
+                        style={{ marginRight: '6px' }}
+                      />
+                      {ft}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {/* Services */}
+              <div>
+                <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '6px' }}>Service</div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name).service).filter(Boolean) as string[])).map(sv => (
+                    <label key={sv} style={{ color: '#ddd', fontSize: '12px' }}>
+                      <input
+                        type="checkbox"
+                        checked={resourceFilterServices.has('all') || resourceFilterServices.has(sv)}
+                        onChange={() => {
+                          const ns = new Set(resourceFilterServices);
+                          ns.delete('all');
+                          if (ns.has(sv)) ns.delete(sv); else ns.add(sv);
+                          if (ns.size === 0) ns.add('all');
+                          setResourceFilterServices(ns);
+                        }}
+                        style={{ marginRight: '6px' }}
+                      />
+                      {sv}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {/* Extensions */}
+              <div>
+                <div style={{ color: '#aaa', fontSize: '12px', marginBottom: '6px' }}>Extension</div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name).file_extension).filter(Boolean) as string[])).map(ext => (
+                    <label key={ext} style={{ color: '#ddd', fontSize: '12px' }}>
+                      <input
+                        type="checkbox"
+                        checked={resourceFilterExtensions.has('all') || resourceFilterExtensions.has(ext)}
+                        onChange={() => {
+                          const ns = new Set(resourceFilterExtensions);
+                          ns.delete('all');
+                          if (ns.has(ext)) ns.delete(ext); else ns.add(ext);
+                          if (ns.size === 0) ns.add('all');
+                          setResourceFilterExtensions(ns);
+                        }}
+                        style={{ marginRight: '6px' }}
+                      />
+                      .{ext}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Aggregations & Nested Tabs */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', color: '#ddd', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', gap: '8px', padding: '10px 14px', borderBottom: '1px solid #333', backgroundColor: '#252525' }}>
+                <button onClick={() => setResourceViewTab('list')} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #444', backgroundColor: resourceViewTab==='list' ? '#333' : '#1f1f1f', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>List</button>
+                <button onClick={() => setResourceViewTab('pie')} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #444', backgroundColor: resourceViewTab==='pie' ? '#333' : '#1f1f1f', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>Pie</button>
+              </div>
+              <div style={{ padding: '16px 20px', overflow: 'auto' }}>
+                {/* derive filtered resources */}
+                {(() => {
+                  const list = resourceEvents.filter(r => {
+                    const ex = getResourceExtras(r.name);
+                    if (!resourceFilterFileTypes.has('all') && ex.file_type && !resourceFilterFileTypes.has(ex.file_type)) return false;
+                    if (!resourceFilterServices.has('all') && ex.service && !resourceFilterServices.has(ex.service)) return false;
+                    if (!resourceFilterExtensions.has('all') && ex.file_extension && !resourceFilterExtensions.has(ex.file_extension)) return false;
+                    return true;
+                  });
+                  const totalTransfer = list.reduce((sum, r: any) => sum + (r.transferSize || 0), 0);
+                  const totalBody = list.reduce((sum, r: any) => sum + (r.decodedBodySize || 0), 0);
+                  const byService = new Map<string, { transfer: number; body: number; count: number }>();
+                  list.forEach((r: any) => {
+                    const sv = getResourceExtras(r.name).service || 'other';
+                    const curr = byService.get(sv) || { transfer: 0, body: 0, count: 0 };
+                    curr.transfer += r.transferSize || 0;
+                    curr.body += r.decodedBodySize || 0;
+                    curr.count += 1;
+                    byService.set(sv, curr);
+                  });
+
+                  // Pie chart
+                  const entries = Array.from(byService.entries());
+                  const totalForPie = entries.reduce((s, [, v]) => s + v.transfer, 0) || 1;
+                  let acc = 0;
+                  const slices = entries.map(([sv, v], idx) => {
+                    const angle = (v.transfer / totalForPie) * Math.PI * 2;
+                    const x1 = Math.cos(acc) * 50;
+                    const y1 = Math.sin(acc) * 50;
+                    acc += angle;
+                    const x2 = Math.cos(acc) * 50;
+                    const y2 = Math.sin(acc) * 50;
+                    const largeArc = angle > Math.PI ? 1 : 0;
+                    const path = `M 0 0 L ${x1} ${y1} A 50 50 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                    const colors = ['#4A90E2','#F5A623','#7ED321','#BD10E0','#50E3C2','#B8E986','#F8E71C','#D0021B'];
+                    const pct = ((v.transfer / totalForPie) * 100);
+                    return { path, color: colors[idx % colors.length], label: sv, value: v.transfer, pct };
+                  });
+
+                  return (
+                    <div>
+                      <div style={{ display: 'flex', gap: '24px', alignItems: 'center', marginBottom: '16px' }}>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#aaa' }}>Total transfer</div>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{formatBytes(totalTransfer)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#aaa' }}>Total body</div>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{formatBytes(totalBody)}</div>
+                        </div>
+                        {resourceViewTab === 'pie' && (
+                          <>
+                            <svg width="180" height="180" viewBox="-60 -60 120 120" style={{ background: 'transparent' }}>
+                              {slices.map((s, i) => (
+                                <path key={i} d={s.path} fill={s.color} stroke="#111" strokeWidth="1" />
+                              ))}
+                            </svg>
+                            <div>
+                              {slices.map((s, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                                  <span style={{ width: '10px', height: '10px', backgroundColor: s.color, display: 'inline-block' }} />
+                                  <span>{s.label}</span>
+                                  <span style={{ color: '#888' }}>{formatBytes(s.value)} · {s.pct.toFixed(1)}%</span>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {resourceViewTab === 'list' && (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
+                          <thead>
+                            <tr style={{ background: '#252525', color: '#ddd' }}>
+                              <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #333' }}>Service</th>
+                              <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #333' }}>Files</th>
+                              <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #333' }}>Transfer</th>
+                              <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #333' }}>Body</th>
+                              <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #333' }}>% of total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {entries.sort((a,b) => b[1].transfer - a[1].transfer).map(([sv, v]) => (
+                              <tr key={sv}>
+                                <td style={{ padding: '8px', borderBottom: '1px solid #2a2a2a' }}>{sv}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{v.count}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{formatBytes(v.transfer)}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{formatBytes(v.body)}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a' }}>{((v.transfer/totalForPie)*100).toFixed(1)}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           </div>
         )}
@@ -1897,7 +2385,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                 backgroundColor: '#1a1a1a',
                 borderRadius: '8px',
                 marginBottom: '15px',
-                border: `2px solid ${getEventColor(selectedEvent.entryType)}`,
+                border: `2px solid ${getEventColor(getEffectiveType(selectedEvent as any))}`,
               }}>
                 {(selectedEvent as any)._isCombined && (
                   <div style={{
@@ -1932,7 +2420,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                         width: '12px',
                         height: '12px',
                         borderRadius: '2px',
-                        backgroundColor: getEventColor(selectedEvent.entryType),
+                        backgroundColor: getEventColor(getEffectiveType(selectedEvent as any)),
                       }}
                     />
                     <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
@@ -1996,7 +2484,10 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
                   Additional Properties
                 </h3>
                 <div style={{ fontSize: '12px' }}>
-                  {Object.entries(selectedEvent)
+                  {Object.entries({
+                      ...(selectedEvent.entryType === 'resource' ? getResourceExtras(selectedEvent.name) : {}),
+                      ...selectedEvent,
+                    })
                     .filter(([key]) => !['name', 'entryType', 'startTime', 'duration', '_isCombined', '_endEvent', '_originalIndex', '_isServer', 'lane'].includes(key))
                     .map(([key, value]) => (
                       <div
@@ -2041,15 +2532,15 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
           left: '20px',
           padding: '12px 16px',
           backgroundColor: 'rgba(0, 0, 0, 0.95)',
-          border: `2px solid ${getEventColor(hoveredEvent.entryType)}`,
+          border: `2px solid ${getEventColor(getEffectiveType(hoveredEvent as any))}`,
           borderRadius: '8px',
           maxWidth: '500px',
           fontSize: '13px',
           zIndex: 1000,
           boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
         }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '6px', color: getEventColor(hoveredEvent.entryType) }}>
-            {hoveredEvent.entryType}
+          <div style={{ fontWeight: 'bold', marginBottom: '6px', color: getEventColor(getEffectiveType(hoveredEvent as any)) }}>
+            {getEffectiveType(hoveredEvent as any)}
             {(hoveredEvent as any)._isCombined && (
               <span style={{ marginLeft: '8px', fontSize: '11px', color: '#9FE6A0' }}>
                 ✓ Combined
