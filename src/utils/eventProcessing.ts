@@ -146,22 +146,28 @@ function extractNavigationPhases(navEvent: PerformanceEntry): PerformanceEntry[]
     addPhase('Response Download', nav.responseStart, nav.responseEnd);
   }
   
-  // 5. DOM Interactive (parsing)
+  // 5. DOM Parsing (HTML parsing until DOM is ready)
   if (nav.responseEnd && nav.domInteractive) {
     addPhase('DOM Parsing', nav.responseEnd, nav.domInteractive);
   }
   
-  // 6. DOM Content Loaded
+  // 6. Script Execution (time between DOM ready and DCL event)
+  if (nav.domInteractive && nav.domContentLoadedEventStart) {
+    addPhase('Script Execution', nav.domInteractive, nav.domContentLoadedEventStart);
+  }
+  
+  // 7. DOMContentLoaded Event
   if (nav.domContentLoadedEventStart && nav.domContentLoadedEventEnd) {
-    addPhase('DOMContentLoaded', nav.domContentLoadedEventStart, nav.domContentLoadedEventEnd);
+    addPhase('DOMContentLoaded Event', nav.domContentLoadedEventStart, nav.domContentLoadedEventEnd);
   }
   
-  // 7. DOM Complete (additional resources)
+  // 8. Loading Subresources (images, fonts, stylesheets, etc.)
+  // This is often the biggest gap - loading non-critical resources
   if (nav.domContentLoadedEventEnd && nav.domComplete) {
-    addPhase('Loading Resources', nav.domContentLoadedEventEnd, nav.domComplete);
+    addPhase('Loading Subresources', nav.domContentLoadedEventEnd, nav.domComplete);
   }
   
-  // 8. Load Event
+  // 9. Load Event
   if (nav.loadEventStart && nav.loadEventEnd) {
     addPhase('Load Event', nav.loadEventStart, nav.loadEventEnd);
   }
