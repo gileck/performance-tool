@@ -102,8 +102,11 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
       return { ...event, lane: 1 };
     }
     
-    // If this event starts later than the previous event, update the minimum lane constraint
+    // Determine the starting lane to search from
+    let searchStartLane = 2; // Default: start from lane 2 (navigation uses 0-1)
+    
     if (event.startTime > lastStartTime) {
+      // New start time - update the minimum lane constraint
       // Find the lowest lane that's still occupied at this start time
       let lowestOccupiedLane = -1;
       for (let i = 0; i < lanes.length; i++) {
@@ -115,11 +118,19 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
       // Start from lane 2 minimum (lanes 0 and 1 are reserved for navigation)
       minLaneForNextStartTime = Math.max(2, lowestOccupiedLane + 1);
       lastStartTime = event.startTime;
+      searchStartLane = minLaneForNextStartTime;
+    } else if (event.startTime === lastStartTime) {
+      // Same start time - allow searching from lane 2 (not constrained by minLaneForNextStartTime)
+      // This lets longer-duration events that were sorted first grab earlier lanes
+      searchStartLane = 2;
+    } else {
+      // Earlier start time (shouldn't happen with our sort, but handle it)
+      searchStartLane = minLaneForNextStartTime;
     }
     
-    // Find the first (topmost) available lane, but not higher than minLaneForNextStartTime
+    // Find the first (topmost) available lane, starting from searchStartLane
     let lane = -1;
-    for (let i = minLaneForNextStartTime; i < lanes.length; i++) {
+    for (let i = searchStartLane; i < lanes.length; i++) {
       if (lanes[i] <= event.startTime) {
         lane = i;
         lanes[i] = eventEnd;
@@ -129,7 +140,7 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
     
     // If no available lane found in the valid range, create a new one at the bottom
     if (lane === -1) {
-      lane = Math.max(lanes.length, minLaneForNextStartTime);
+      lane = Math.max(lanes.length, searchStartLane);
       // Ensure lanes array is big enough
       while (lanes.length <= lane) {
         lanes.push(0);
