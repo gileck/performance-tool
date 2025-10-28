@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { PerformanceToolPage } from "./PerformanceToolPage";
-import hardcodedData from "../../performanceData.json";
 
 async function fetchSiteModels(siteUrl: string) {
   try {
@@ -25,14 +24,61 @@ async function fetchSiteModels(siteUrl: string) {
 }
 
 function usePerformanceData() {
-  const [data, setData] = useState<any>(hardcodedData);
-  const [dataSource, setDataSource] = useState<null | 'fresh' | 'local'>('fresh');
-  
-  // Hardcoded data mode - using performanceData.json directly
+  const [data, setData] = useState<any>(null);
+  const [dataSource, setDataSource] = useState<null | 'fresh' | 'local'>(null);
   useEffect(() => {
-    console.log('Using hardcoded performance data from performanceData.json');
-    setData(hardcodedData);
-    setDataSource('fresh');
+    const STORAGE_KEY = 'performance-tool:lastData';
+    let received = false;
+    const timeoutId = window.setTimeout(() => {
+      if (received) return;
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setData(parsed);
+          setDataSource('local');
+        }
+      } catch (err) {
+        console.error('Failed to read saved performance data:', err);
+      }
+    }, 2000);
+
+    const handler = async (event: MessageEvent) => {
+      if (event.data && event.data.type === 'performanceData') {
+        received = true;
+        window.clearTimeout(timeoutId);
+
+        // If siteModels doesn't exist but we have a site URL, fetch it
+        let enrichedData = event.data;
+        const existingSiteUrl = enrichedData.siteModels?.publicModel?.externalBaseUrl;
+        const incomingSiteUrl = enrichedData.siteUrl;
+
+        if (!enrichedData.siteModels && (existingSiteUrl || incomingSiteUrl)) {
+          const siteUrl = existingSiteUrl || incomingSiteUrl;
+          const siteModels = await fetchSiteModels(siteUrl);
+          if (siteModels) {
+            enrichedData = { ...enrichedData, siteModels };
+          }
+        }
+
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(enrichedData));
+        } catch (err) {
+          console.error('Failed to save performance data:', err);
+        }
+
+        setData(enrichedData);
+        setDataSource('fresh');
+      }
+    };
+
+    window.addEventListener('message', handler as any);
+    window.opener?.postMessage('opened', '*');
+
+    return () => {
+      window.removeEventListener('message', handler as any);
+      window.clearTimeout(timeoutId);
+    };
   }, []);
 
   return { data, dataSource };
