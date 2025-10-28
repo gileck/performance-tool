@@ -85,14 +85,24 @@ export function getResourceExtras(name: string, siteModels?: PerformanceData['si
             }
           }
         }
-        // Pattern 2: https://[APP_ID].wixappcloud.com/browser/assets
+        // Pattern 2: [Site_URL]/_partials/[Service]/dist/[FileName]
+        else if (u.pathname.includes('/_partials/')) {
+          // Extract service from _partials path
+          // Example: /_partials/wix-thunderbolt/dist/file.js
+          const partialsIndex = pathSegs.indexOf('_partials');
+          if (partialsIndex >= 0 && pathSegs.length > partialsIndex + 1) {
+            extras.service = pathSegs[partialsIndex + 1];
+            extras.file_type = '_partials';
+          }
+        }
+        // Pattern 3: https://[APP_ID].wixappcloud.com/browser/assets
         else if (hostname.endsWith('.wixappcloud.com') && u.pathname.startsWith('/browser/assets')) {
           // Extract APP_ID (everything before first dot)
           const appId = hostname.split('.')[0];
           extras.service = appId;
           extras.file_type = 'wixappcloud';
         }
-        // Pattern 3: Other domains
+        // Pattern 4: Other domains
         else {
           extras.service = 'other';
           extras.file_type = 'other';
