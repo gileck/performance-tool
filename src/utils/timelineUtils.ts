@@ -43,8 +43,14 @@ export function pixelsToTime(
 }
 
 export function calculateLanePositions(events: PerformanceEntry[]): EventWithPosition[] {
-  // Sort events by start time first, then by end time (descending) for same start times
+  // Sort events: navigation-phase events first, then by start time, then by duration
   const sorted = [...events].sort((a, b) => {
+    // Prioritize navigation-phase events
+    const aIsNavPhase = a.entryType === 'navigation-phase';
+    const bIsNavPhase = b.entryType === 'navigation-phase';
+    if (aIsNavPhase && !bIsNavPhase) return -1;
+    if (!aIsNavPhase && bIsNavPhase) return 1;
+    
     // First sort by start time (ascending - earlier events first)
     if (a.startTime !== b.startTime) {
       return a.startTime - b.startTime;
@@ -66,6 +72,20 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
   
   return sorted.map((event) => {
     const eventEnd = event.startTime + event.duration;
+    const isNavPhase = event.entryType === 'navigation-phase';
+    
+    // Navigation-phase events get priority for lane 1 (second row)
+    if (isNavPhase) {
+      // Ensure we have at least 2 lanes
+      while (lanes.length < 2) {
+        lanes.push(0);
+      }
+      // Try to place in lane 1 if available
+      if (lanes[1] <= event.startTime) {
+        lanes[1] = eventEnd;
+        return { ...event, lane: 1 };
+      }
+    }
     
     // If this event starts later than the previous event, update the minimum lane constraint
     if (event.startTime > lastStartTime) {
