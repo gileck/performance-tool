@@ -1,5 +1,6 @@
 export const EVENT_TYPE_COLORS: Record<string, string> = {
   'navigation': '#FF6B6B',
+  'navigation-phase': '#FF9999',
   'resource': '#4ECDC4',
   'resource:file': '#4A90E2',
   'resource:api': '#F5A623',
