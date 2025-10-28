@@ -75,6 +75,7 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
   // This prevents later events from appearing above earlier events
   let minLaneForNextStartTime = 0;
   let lastStartTime = -1;
+  let maxLaneUsedAtLastStartTime = 1; // Track the highest lane used at the previous start time
   
   return sorted.map((event) => {
     const eventEnd = event.startTime + event.duration;
@@ -106,18 +107,11 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
     let searchStartLane = 2; // Default: start from lane 2 (navigation uses 0-1)
     
     if (event.startTime > lastStartTime) {
-      // New start time - update the minimum lane constraint
-      // Find the lowest lane that's still occupied at this start time
-      let lowestOccupiedLane = -1;
-      for (let i = 0; i < lanes.length; i++) {
-        if (lanes[i] > event.startTime) {
-          lowestOccupiedLane = i;
-        }
-      }
-      // Can only go above occupied lanes, not above where previous events were placed
-      // Start from lane 2 minimum (lanes 0 and 1 are reserved for navigation)
-      minLaneForNextStartTime = Math.max(2, lowestOccupiedLane + 1);
+      // New start time - events starting later must go at or below the max lane used at previous start time
+      // This ensures chronological ordering: earlier events always appear in earlier rows
+      minLaneForNextStartTime = maxLaneUsedAtLastStartTime + 1;
       lastStartTime = event.startTime;
+      maxLaneUsedAtLastStartTime = minLaneForNextStartTime; // Reset for this new start time
       searchStartLane = minLaneForNextStartTime;
     } else if (event.startTime === lastStartTime) {
       // Same start time - allow searching from lane 2 (not constrained by minLaneForNextStartTime)
@@ -146,6 +140,11 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
         lanes.push(0);
       }
       lanes[lane] = eventEnd;
+    }
+    
+    // Track the maximum lane used at the current start time for chronological ordering
+    if (event.startTime === lastStartTime) {
+      maxLaneUsedAtLastStartTime = Math.max(maxLaneUsedAtLastStartTime, lane);
     }
     
     return { ...event, lane };
