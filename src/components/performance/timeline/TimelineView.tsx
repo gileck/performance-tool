@@ -316,11 +316,11 @@ export function TimelineView(props: TimelineViewProps) {
                     top: 0,
                     width: '0',
                     height: '100%',
-                    borderLeft: '2px dotted #FF4444',
+                    borderLeft: `2px dotted ${color}`,
                     cursor: 'pointer',
                     pointerEvents: 'auto',
                     zIndex: hoveredEvent === event ? 100 : 10,
-                    boxShadow: hoveredEvent === event ? '0 0 8px #FF4444' : 'none',
+                    boxShadow: hoveredEvent === event ? `0 0 8px ${color}` : 'none',
                   }}
                 />
               </div>
