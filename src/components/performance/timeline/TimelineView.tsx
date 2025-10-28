@@ -84,6 +84,10 @@ export function TimelineView(props: TimelineViewProps) {
 
   const toPixels = (time: number) => timeToPixels(time, bounds, zoomLevel, panOffset);
 
+  // Calculate the total height needed based on max lane
+  const maxLane = eventsWithPositions.reduce((max, event) => Math.max(max, event.lane), 0);
+  const timelineHeight = Math.max(200, calculateEventPosition(maxLane) + 50); // Add padding at bottom
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Warning Banner */}
@@ -148,7 +152,7 @@ export function TimelineView(props: TimelineViewProps) {
           onMouseLeave={onMouseLeave}
           style={{
             position: 'relative',
-            minHeight: '200px',
+            height: `${timelineHeight}px`,
             width: '100%',
           }}
         >
