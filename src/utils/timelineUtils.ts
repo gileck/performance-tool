@@ -103,20 +103,26 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
       return { ...event, lane: 1 };
     }
     
-    // Update min lane for new start times to enforce chronological ordering
+    // Determine search start lane based on chronological ordering
+    let searchStartLane: number;
+    
     if (event.startTime > lastStartTime) {
-      // New start time - MUST start at or below the max lane used so far
+      // New start time - MUST start below all previous events
       minLaneForNextStartTime = maxLaneUsedSoFar + 1;
       lastStartTime = event.startTime;
+      searchStartLane = minLaneForNextStartTime;
     } else if (event.startTime === lastStartTime) {
-      // Same start time - can try to find available lanes starting from lane 2
-      // but still respects occupied lanes
-      minLaneForNextStartTime = 2;
+      // Same start time - can search from lane 2 to pack efficiently
+      // but never go below minLaneForNextStartTime if it was already set higher
+      searchStartLane = Math.max(2, minLaneForNextStartTime);
+    } else {
+      // Earlier start time (shouldn't happen due to sort)
+      searchStartLane = minLaneForNextStartTime;
     }
     
-    // Find the first available lane starting from minLaneForNextStartTime
+    // Find the first available lane starting from searchStartLane
     let lane = -1;
-    for (let i = minLaneForNextStartTime; i < lanes.length; i++) {
+    for (let i = searchStartLane; i < lanes.length; i++) {
       if (lanes[i] <= event.startTime) {
         lane = i;
         lanes[i] = eventEnd;
@@ -126,14 +132,14 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
     
     // If no available lane found, create a new one
     if (lane === -1) {
-      lane = Math.max(lanes.length, minLaneForNextStartTime);
+      lane = Math.max(lanes.length, searchStartLane);
       while (lanes.length <= lane) {
         lanes.push(0);
       }
       lanes[lane] = eventEnd;
     }
     
-    // Track the maximum lane used for chronological ordering
+    // Track the maximum lane used across all events
     maxLaneUsedSoFar = Math.max(maxLaneUsedSoFar, lane);
     
     return { ...event, lane };
