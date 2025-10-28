@@ -107,10 +107,18 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
     let searchStartLane: number;
     
     if (event.startTime > lastStartTime) {
-      // New start time - MUST start below all previous events
-      minLaneForNextStartTime = maxLaneUsedSoFar + 1;
+      // New start time - can reuse lanes that have been freed up
+      // Find the highest lane that's still occupied at this start time
+      let highestOccupiedLane = 1; // Start from 1 (lanes 0-1 are navigation)
+      for (let i = 2; i < lanes.length; i++) {
+        if (lanes[i] > event.startTime) {
+          highestOccupiedLane = i;
+        }
+      }
+      // Must start at or below the highest occupied lane + 1
+      minLaneForNextStartTime = highestOccupiedLane + 1;
       lastStartTime = event.startTime;
-      searchStartLane = minLaneForNextStartTime;
+      searchStartLane = Math.max(2, minLaneForNextStartTime);
     } else if (event.startTime === lastStartTime) {
       // Same start time - can search from lane 2 to pack efficiently
       // but never go below minLaneForNextStartTime if it was already set higher
