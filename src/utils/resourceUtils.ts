@@ -90,10 +90,12 @@ export function getResourceExtras(name: string, siteModels?: PerformanceData['si
           // Extract APP_ID (everything before first dot)
           const appId = hostname.split('.')[0];
           extras.service = appId;
+          extras.file_type = 'wixappcloud';
         }
         // Pattern 3: Other domains
         else {
           extras.service = 'other';
+          extras.file_type = 'other';
         }
       } catch {}
     }
