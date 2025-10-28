@@ -18,7 +18,7 @@ export interface PerformanceData {
 }
 
 export type TabType = 'timeline' | 'table' | 'resources';
-export type ResourceViewTab = 'list' | 'pie';
+export type ResourceViewTab = 'all' | 'services' | 'pie';
 export type SortDirection = 'asc' | 'desc';
 
 export interface ResourceExtras {

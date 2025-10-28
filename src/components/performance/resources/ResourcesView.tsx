@@ -239,18 +239,32 @@ export function ResourcesView(props: ResourcesViewProps) {
         {/* Nested Tabs */}
         <div style={{ display: 'flex', gap: '8px', padding: '10px 14px', borderBottom: '1px solid #333', backgroundColor: '#252525' }}>
           <button 
-            onClick={() => onResourceViewTabChange('list')} 
+            onClick={() => onResourceViewTabChange('all')} 
             style={{ 
               padding: '6px 10px', 
               borderRadius: '6px', 
               border: '1px solid #444', 
-              backgroundColor: resourceViewTab === 'list' ? '#333' : '#1f1f1f', 
+              backgroundColor: resourceViewTab === 'all' ? '#333' : '#1f1f1f', 
               color: '#fff', 
               cursor: 'pointer', 
               fontSize: '12px' 
             }}
           >
-            List
+            All
+          </button>
+          <button 
+            onClick={() => onResourceViewTabChange('services')} 
+            style={{ 
+              padding: '6px 10px', 
+              borderRadius: '6px', 
+              border: '1px solid #444', 
+              backgroundColor: resourceViewTab === 'services' ? '#333' : '#1f1f1f', 
+              color: '#fff', 
+              cursor: 'pointer', 
+              fontSize: '12px' 
+            }}
+          >
+            Services
           </button>
           <button 
             onClick={() => onResourceViewTabChange('pie')} 
@@ -302,8 +316,80 @@ export function ResourcesView(props: ResourcesViewProps) {
             </div>
           )}
 
-          {/* List Table */}
-          {resourceViewTab === 'list' && (
+          {/* All Resources Table - Flat List */}
+          {resourceViewTab === 'all' && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
+              <thead>
+                <tr style={{ background: '#252525', color: '#ddd' }}>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #333' }}>Resource</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #333' }}>Service</th>
+                  <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #333' }}>Transfer</th>
+                  <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #333' }}>Body</th>
+                  <th style={{ textAlign: 'right', padding: '8px', borderBottom: '1px solid #333' }}>% of total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...filteredResources]
+                  .sort((a: any, b: any) => (b.transferSize || 0) - (a.transferSize || 0))
+                  .map((resource: any, idx: number) => {
+                    const extras = getResourceExtras(resource.name, undefined);
+                    const serviceName = extras.service || 'other';
+                    return (
+                      <tr 
+                        key={idx}
+                        style={{ 
+                          cursor: onEventSelect ? 'pointer' : 'default',
+                          transition: 'background-color 0.15s'
+                        }}
+                        onClick={() => {
+                          if (onEventSelect) {
+                            onEventSelect(resource);
+                          }
+                        }}
+                        onMouseEnter={(e) => {
+                          if (onEventSelect) {
+                            e.currentTarget.style.backgroundColor = '#252525';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <td 
+                          style={{ 
+                            padding: '8px', 
+                            borderBottom: '1px solid #2a2a2a',
+                            fontSize: '11px',
+                            maxWidth: '500px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                          title={resource.name}
+                        >
+                          {resource.name}
+                        </td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #2a2a2a', fontSize: '11px', color: '#aaa' }}>
+                          {serviceName}
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a', fontSize: '11px' }}>
+                          {formatBytes(resource.transferSize || 0)}
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a', fontSize: '11px' }}>
+                          {formatBytes(resource.decodedBodySize || 0)}
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #2a2a2a', fontSize: '11px' }}>
+                          {totalTransfer > 0 ? ((resource.transferSize || 0) / totalTransfer * 100).toFixed(1) : '0.0'}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          )}
+
+          {/* Services Table - Grouped by Service */}
+          {resourceViewTab === 'services' && (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
               <thead>
                 <tr style={{ background: '#252525', color: '#ddd' }}>

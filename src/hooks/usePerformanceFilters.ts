@@ -97,7 +97,7 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
   const [resourceFilterServices, setResourceFilterServices] = useState<Set<string>>(new Set(['all']));
   const [resourceFilterExtensions, setResourceFilterExtensions] = useState<Set<string>>(new Set(['all']));
   const [resourceFilterSubtypes, setResourceFilterSubtypes] = useState<Set<string>>(new Set(['all']));
-  const [resourceViewTab, setResourceViewTab] = useState<ResourceViewTab>('list');
+  const [resourceViewTab, setResourceViewTab] = useState<ResourceViewTab>('services');
   const [activeTab, setActiveTab] = useState<TabType>('timeline');
   const [showNegativeTimestamps, setShowNegativeTimestamps] = useState(false);
   const [ssrTimeOffset, setSsrTimeOffset] = useState(0);
@@ -176,8 +176,11 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
         if (parsed.sortDirection === 'asc' || parsed.sortDirection === 'desc') {
           setSortDirection(parsed.sortDirection);
         }
-        if (parsed.resourceViewTab === 'list' || parsed.resourceViewTab === 'pie') {
+        if (parsed.resourceViewTab === 'all' || parsed.resourceViewTab === 'services' || parsed.resourceViewTab === 'pie') {
           setResourceViewTab(parsed.resourceViewTab);
+        } else if (parsed.resourceViewTab === 'list') {
+          // Migrate old 'list' to new 'services'
+          setResourceViewTab('services');
         }
       }
       setSettingsLoaded(true);
