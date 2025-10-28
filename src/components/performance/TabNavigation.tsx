@@ -10,13 +10,14 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
     { id: 'timeline', label: 'Timeline' },
     { id: 'table', label: 'Events Table' },
     { id: 'resources', label: 'Resources' },
+    { id: 'settings', label: 'Settings' },
   ];
 
   return (
     <div style={{
       display: 'flex',
       gap: '0',
-      borderTop: '1px solid #333',
+      borderBottom: '1px solid #333',
       backgroundColor: '#202020',
     }}>
       {tabs.map(tab => (

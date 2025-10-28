@@ -5,12 +5,12 @@ import { useEventProcessing } from '../hooks/useEventProcessing';
 import { useTimelineInteraction } from '../hooks/useTimelineInteraction';
 import { PerformanceHeader } from '../components/performance/PerformanceHeader';
 import { TabNavigation } from '../components/performance/TabNavigation';
-import { SettingsModal } from '../components/performance/SettingsModal';
 import { EventDetailsPanel } from '../components/performance/EventDetailsPanel';
 import { TimelineView } from '../components/performance/timeline/TimelineView';
 import { TimelineControls } from '../components/performance/timeline/TimelineControls';
 import { TableView } from '../components/performance/table/TableView';
 import { ResourcesView } from '../components/performance/resources/ResourcesView';
+import { SettingsView } from '../components/performance/SettingsView';
 import { calculateTimelineBounds, pixelsToTime, getEventColor } from '../utils/timelineUtils';
 import { getEffectiveType } from '../utils/resourceUtils';
 import { formatTime } from '../utils/formatters';
@@ -27,9 +27,6 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
 
   // Selected event state
   const [selectedEvent, setSelectedEvent] = useState<PerformanceEntry | null>(null);
-
-  // Settings modal state
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Table state
   const [sortColumn, setSortColumn] = useState<string>('startTime');
@@ -51,7 +48,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     const urlTab = params.get('tab') as TabType | null;
     const urlResourceView = params.get('resourceView') as ResourceViewTab | null;
     
-    if (urlTab && (urlTab === 'timeline' || urlTab === 'table' || urlTab === 'resources')) {
+    if (urlTab && (urlTab === 'timeline' || urlTab === 'table' || urlTab === 'resources' || urlTab === 'settings')) {
       if (urlTab !== activeTab) {
         filterActions.setActiveTab(urlTab);
       }
@@ -140,29 +137,28 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
 
   return (
     <div style={{
-      width: '100%',
-      height: '100vh',
+      backgroundColor: '#121212',
+      color: '#ffffff',
+      minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      backgroundColor: '#1a1a1a',
-      color: '#ffffff',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      overflow: 'hidden',
     }}>
-      {/* Header */}
-      <div style={{
-        padding: '20px',
-        borderBottom: '2px solid #333',
-        backgroundColor: '#252525',
-      }}>
+      <div style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <PerformanceHeader
           data={data}
           onCopyData={copyRawData}
           onPrintConsole={printToConsole}
-          onOpenSettings={() => setShowSettingsModal(true)}
         />
-        
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap', marginTop: '15px' }}>
+      </div>
+
+      {/* Main Tabs Navigation */}
+      <TabNavigation
+        activeTab={activeTab}
+        onTabChange={filterActions.setActiveTab}
+      />
+
+      <div style={{ padding: '16px 24px', borderBottom: '1px solid #333' }}>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
           {activeTab === 'timeline' && (
             <TimelineControls
               processedEvents={eventData.processedEvents}
@@ -194,28 +190,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
             </div>
           )}
         </div>
-
-        <TabNavigation
-          activeTab={activeTab}
-          onTabChange={filterActions.setActiveTab}
-        />
       </div>
-
-      {/* Settings Modal */}
-      <SettingsModal
-        show={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        ssrTimeOffset={filters.ssrTimeOffset}
-        onSsrTimeOffsetChange={filterActions.setSsrTimeOffset}
-        minDurationMs={filters.minDurationMs}
-        onMinDurationMsChange={filterActions.setMinDurationMs}
-        resourceDomainFilters={filters.resourceDomainFilters}
-        onResourceDomainFiltersChange={filterActions.setResourceDomainFilters}
-        graphEndTime={filters.graphEndTime}
-        onGraphEndTimeChange={filterActions.setGraphEndTime}
-        showNegativeTimestamps={filters.showNegativeTimestamps}
-        onShowNegativeTimestampsChange={filterActions.setShowNegativeTimestamps}
-      />
 
       {/* Main Content */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -297,6 +272,22 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
             onSubtypeToggle={filterActions.toggleResourceSubtype}
             onResourceViewTabChange={filterActions.setResourceViewTab}
             onEventSelect={setSelectedEvent}
+          />
+        )}
+
+        {/* Settings View */}
+        {activeTab === 'settings' && (
+          <SettingsView
+            ssrTimeOffset={filters.ssrTimeOffset}
+            onSsrTimeOffsetChange={filterActions.setSsrTimeOffset}
+            minDurationMs={filters.minDurationMs}
+            onMinDurationMsChange={filterActions.setMinDurationMs}
+            resourceDomainFilters={filters.resourceDomainFilters}
+            onResourceDomainFiltersChange={filterActions.setResourceDomainFilters}
+            graphEndTime={filters.graphEndTime}
+            onGraphEndTimeChange={filterActions.setGraphEndTime}
+            showNegativeTimestamps={filters.showNegativeTimestamps}
+            onShowNegativeTimestampsChange={filterActions.setShowNegativeTimestamps}
           />
         )}
 

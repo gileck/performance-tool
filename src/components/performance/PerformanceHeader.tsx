@@ -4,14 +4,12 @@ interface PerformanceHeaderProps {
   data: PerformanceData;
   onCopyData: () => void;
   onPrintConsole: () => void;
-  onOpenSettings: () => void;
 }
 
 export function PerformanceHeader({
   data,
   onCopyData,
   onPrintConsole,
-  onOpenSettings,
 }: PerformanceHeaderProps) {
   return (
     <div>
@@ -80,24 +78,6 @@ export function PerformanceHeader({
           title="Print data to browser console"
         >
           🖨️ Console
-        </button>
-        <button
-          onClick={onOpenSettings}
-          style={{
-            padding: '6px 12px',
-            borderRadius: '6px',
-            border: '1px solid #444',
-            backgroundColor: '#333',
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-          title="Open settings"
-        >
-          ⚙️ Settings
         </button>
       </div>
     </div>
