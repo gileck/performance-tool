@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { PerformanceEntry, ResourceViewTab } from '../../../types/performance';
+import type { PerformanceEntry, PerformanceData, ResourceViewTab } from '../../../types/performance';
 import { getResourceExtras } from '../../../utils/resourceUtils';
 import { formatBytes } from '../../../utils/formatters';
 
@@ -16,6 +16,7 @@ interface ResourcesViewProps {
   onSubtypeToggle: (subtype: string) => void;
   onResourceViewTabChange: (tab: ResourceViewTab) => void;
   onEventSelect?: (event: PerformanceEntry) => void;
+  siteModels?: PerformanceData['siteModels'];
 }
 
 export function ResourcesView(props: ResourcesViewProps) {
@@ -32,29 +33,30 @@ export function ResourcesView(props: ResourcesViewProps) {
     onSubtypeToggle,
     onResourceViewTabChange,
     onEventSelect,
+    siteModels,
   } = props;
 
   // Get all unique file types, services, extensions, and subtypes
   const fileTypes = useMemo(() => {
-    return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, undefined).file_type).filter(Boolean) as string[]));
-  }, [resourceEvents]);
+    return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, siteModels).file_type).filter(Boolean) as string[]));
+  }, [resourceEvents, siteModels]);
 
   const services = useMemo(() => {
-    return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, undefined).service).filter(Boolean) as string[]));
-  }, [resourceEvents]);
+    return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, siteModels).service).filter(Boolean) as string[]));
+  }, [resourceEvents, siteModels]);
 
   const extensions = useMemo(() => {
-    return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, undefined).file_extension).filter(Boolean) as string[]));
-  }, [resourceEvents]);
+    return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, siteModels).file_extension).filter(Boolean) as string[]));
+  }, [resourceEvents, siteModels]);
 
   const subtypes = useMemo(() => {
-    return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, undefined).resource_subtype).filter(Boolean) as string[]));
-  }, [resourceEvents]);
+    return Array.from(new Set(resourceEvents.map(r => getResourceExtras(r.name, siteModels).resource_subtype).filter(Boolean) as string[]));
+  }, [resourceEvents, siteModels]);
 
   // Filter resources
   const filteredResources = useMemo(() => {
     return resourceEvents.filter(r => {
-      const ex = getResourceExtras(r.name, undefined);
+      const ex = getResourceExtras(r.name, siteModels);
       
       // Subtype filter: if not 'all', only include resources with that exact subtype
       if (!resourceFilterSubtypes.has('all')) {
@@ -86,7 +88,7 @@ export function ResourcesView(props: ResourcesViewProps) {
       
       return true;
     });
-  }, [resourceEvents, resourceFilterFileTypes, resourceFilterServices, resourceFilterExtensions, resourceFilterSubtypes]);
+  }, [resourceEvents, resourceFilterFileTypes, resourceFilterServices, resourceFilterExtensions, resourceFilterSubtypes, siteModels]);
 
   // Track expanded services
   const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
@@ -95,7 +97,7 @@ export function ResourcesView(props: ResourcesViewProps) {
   const byService = useMemo(() => {
     const map = new Map<string, { transfer: number; body: number; count: number; resources: PerformanceEntry[] }>();
     filteredResources.forEach((r: any) => {
-      const sv = getResourceExtras(r.name, undefined).service || 'other';
+      const sv = getResourceExtras(r.name, siteModels).service || 'other';
       const curr = map.get(sv) || { transfer: 0, body: 0, count: 0, resources: [] };
       curr.transfer += r.transferSize || 0;
       curr.body += r.decodedBodySize || 0;
@@ -104,7 +106,7 @@ export function ResourcesView(props: ResourcesViewProps) {
       map.set(sv, curr);
     });
     return map;
-  }, [filteredResources]);
+  }, [filteredResources, siteModels]);
 
   const toggleService = (service: string) => {
     setExpandedServices(prev => {
@@ -332,7 +334,7 @@ export function ResourcesView(props: ResourcesViewProps) {
                 {[...filteredResources]
                   .sort((a: any, b: any) => (b.transferSize || 0) - (a.transferSize || 0))
                   .map((resource: any, idx: number) => {
-                    const extras = getResourceExtras(resource.name, undefined);
+                    const extras = getResourceExtras(resource.name, siteModels);
                     const serviceName = extras.service || 'other';
                     return (
                       <tr 

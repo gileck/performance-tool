@@ -272,6 +272,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
             onSubtypeToggle={filterActions.toggleResourceSubtype}
             onResourceViewTabChange={filterActions.setResourceViewTab}
             onEventSelect={setSelectedEvent}
+            siteModels={data.siteModels}
           />
         )}
 
