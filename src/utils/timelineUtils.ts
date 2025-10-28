@@ -43,9 +43,15 @@ export function pixelsToTime(
 }
 
 export function calculateLanePositions(events: PerformanceEntry[]): EventWithPosition[] {
-  // Sort events: navigation-phase events first, then by start time, then by duration
+  // Sort events: navigation first, then navigation-phase, then by start time, then by duration
   const sorted = [...events].sort((a, b) => {
-    // Prioritize navigation-phase events
+    // Prioritize navigation event (goes to lane 0)
+    const aIsNav = a.entryType === 'navigation';
+    const bIsNav = b.entryType === 'navigation';
+    if (aIsNav && !bIsNav) return -1;
+    if (!aIsNav && bIsNav) return 1;
+    
+    // Then prioritize navigation-phase events (goes to lane 1)
     const aIsNavPhase = a.entryType === 'navigation-phase';
     const bIsNavPhase = b.entryType === 'navigation-phase';
     if (aIsNavPhase && !bIsNavPhase) return -1;
@@ -72,19 +78,28 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
   
   return sorted.map((event) => {
     const eventEnd = event.startTime + event.duration;
+    const isNav = event.entryType === 'navigation';
     const isNavPhase = event.entryType === 'navigation-phase';
     
-    // Navigation-phase events get priority for lane 1 (second row)
+    // Navigation event gets lane 0 (first row)
+    if (isNav) {
+      // Ensure we have at least 1 lane
+      while (lanes.length < 1) {
+        lanes.push(0);
+      }
+      lanes[0] = eventEnd;
+      return { ...event, lane: 0 };
+    }
+    
+    // Navigation-phase events get lane 1 (second row)
     if (isNavPhase) {
       // Ensure we have at least 2 lanes
       while (lanes.length < 2) {
         lanes.push(0);
       }
-      // Try to place in lane 1 if available
-      if (lanes[1] <= event.startTime) {
-        lanes[1] = eventEnd;
-        return { ...event, lane: 1 };
-      }
+      // Always place in lane 1, even if it overlaps (they shouldn't overlap with each other)
+      lanes[1] = Math.max(lanes[1], eventEnd);
+      return { ...event, lane: 1 };
     }
     
     // If this event starts later than the previous event, update the minimum lane constraint
@@ -97,7 +112,8 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
         }
       }
       // Can only go above occupied lanes, not above where previous events were placed
-      minLaneForNextStartTime = Math.max(0, lowestOccupiedLane + 1);
+      // Start from lane 2 minimum (lanes 0 and 1 are reserved for navigation)
+      minLaneForNextStartTime = Math.max(2, lowestOccupiedLane + 1);
       lastStartTime = event.startTime;
     }
     
