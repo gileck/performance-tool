@@ -99,7 +99,21 @@ export function getResourceExtras(name: string, siteModels?: PerformanceData['si
         else if (hostname.endsWith('.wixappcloud.com') && u.pathname.startsWith('/browser/assets')) {
           // Extract APP_ID (everything before first dot)
           const appId = hostname.split('.')[0];
-          extras.service = appId;
+          
+          // Try to find the app name from siteModels
+          let appName = appId; // Default to APP_ID if not found
+          try {
+            if (siteModels?.rendererModel?.clientSpecMap) {
+              const app = siteModels.rendererModel.clientSpecMap.find(
+                (app: any) => app.appDefinitionId === appId
+              );
+              if (app?.appDefinitionName) {
+                appName = app.appDefinitionName;
+              }
+            }
+          } catch {}
+          
+          extras.service = appName;
           extras.file_type = 'wixappcloud';
         }
         // Pattern 4: Other domains

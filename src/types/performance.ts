@@ -14,6 +14,15 @@ export interface PerformanceData {
       externalBaseUrl?: string;
       siteDisplayName?: string;
     };
+    rendererModel?: {
+      clientSpecMap?: Array<{
+        appDefinitionId?: string;
+        appDefinitionName?: string;
+        [key: string]: any;
+      }>;
+      [key: string]: any;
+    };
+    [key: string]: any;
   };
 }
 
