@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import type { PerformanceEntry, PerformanceData, TabType, SortDirection } from '../types/performance';
+import { useState, useMemo, useEffect } from 'react';
+import type { PerformanceEntry, PerformanceData, TabType, ResourceViewTab, SortDirection } from '../types/performance';
 import { usePerformanceFilters } from '../hooks/usePerformanceFilters';
 import { useEventProcessing } from '../hooks/useEventProcessing';
 import { useTimelineInteraction } from '../hooks/useTimelineInteraction';
@@ -28,9 +28,6 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   // Selected event state
   const [selectedEvent, setSelectedEvent] = useState<PerformanceEntry | null>(null);
 
-  // Active tab state
-  const [activeTab, setActiveTab] = useState<TabType>('timeline');
-
   // Settings modal state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
@@ -41,6 +38,47 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   // Use custom hooks
   const [filters, filterActions, filterDropdowns] = usePerformanceFilters();
   const [timelineInteraction, timelineHandlers] = useTimelineInteraction();
+
+  // Get activeTab and resourceViewTab from filters
+  const activeTab = filters.activeTab;
+  const resourceViewTab = filters.resourceViewTab;
+
+  // Sync URL with tab state on mount
+  useEffect(() => {
+    if (!filters.settingsLoaded) return; // Wait for settings to load first
+    
+    const params = new URLSearchParams(window.location.search);
+    const urlTab = params.get('tab') as TabType | null;
+    const urlResourceView = params.get('resourceView') as ResourceViewTab | null;
+    
+    if (urlTab && (urlTab === 'timeline' || urlTab === 'table' || urlTab === 'resources')) {
+      if (urlTab !== activeTab) {
+        filterActions.setActiveTab(urlTab);
+      }
+    }
+    
+    if (urlResourceView && (urlResourceView === 'all' || urlResourceView === 'services' || urlResourceView === 'pie')) {
+      if (urlResourceView !== resourceViewTab) {
+        filterActions.setResourceViewTab(urlResourceView);
+      }
+    }
+  }, [filters.settingsLoaded]); // Only run once after settings load
+
+  // Update URL when tabs change
+  useEffect(() => {
+    if (!filters.settingsLoaded) return; // Don't update URL until settings are loaded
+    
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', activeTab);
+    if (activeTab === 'resources') {
+      params.set('resourceView', resourceViewTab);
+    } else {
+      params.delete('resourceView');
+    }
+    
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [activeTab, resourceViewTab, filters.settingsLoaded]);
 
   // Process events
   const eventData = useEventProcessing({
@@ -159,7 +197,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
 
         <TabNavigation
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={filterActions.setActiveTab}
         />
       </div>
 
