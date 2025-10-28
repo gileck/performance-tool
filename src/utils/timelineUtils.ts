@@ -153,9 +153,8 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
     maxLaneUsedSoFar = Math.max(maxLaneUsedSoFar, lane);
     
     // Update minimum lane for next event at same start time
-    if (event.startTime === lastStartTime) {
-      minLaneForSameStartTime = lane + 1;
-    }
+    // This applies to ALL events at the current start time (including the first one)
+    minLaneForSameStartTime = lane + 1;
     
     return { ...event, lane };
   });
