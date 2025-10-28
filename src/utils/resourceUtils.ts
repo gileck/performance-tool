@@ -104,7 +104,9 @@ export function getResourceExtras(name: string, siteModels?: PerformanceData['si
           let appName = appId; // Default to APP_ID if not found
           try {
             if (siteModels?.rendererModel?.clientSpecMap) {
-              const app = siteModels.rendererModel.clientSpecMap.find(
+              // clientSpecMap is an object, need to convert to array
+              const apps = Object.values(siteModels.rendererModel.clientSpecMap);
+              const app = apps.find(
                 (app: any) => app.appDefinitionId === appId
               );
               if (app?.appDefinitionName) {
