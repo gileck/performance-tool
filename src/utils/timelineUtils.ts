@@ -75,7 +75,7 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
   // This prevents later events from appearing above earlier events
   let minLaneForNextStartTime = 0;
   let lastStartTime = -1;
-  let maxLaneUsedAtLastStartTime = 1; // Track the highest lane used at the previous start time
+  let maxLaneUsedSoFar = 1; // Track the highest lane used across ALL events processed
   
   return sorted.map((event) => {
     const eventEnd = event.startTime + event.duration;
@@ -107,11 +107,10 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
     let searchStartLane = 2; // Default: start from lane 2 (navigation uses 0-1)
     
     if (event.startTime > lastStartTime) {
-      // New start time - events starting later must go at or below the max lane used at previous start time
-      // This ensures chronological ordering: earlier events always appear in earlier rows
-      minLaneForNextStartTime = maxLaneUsedAtLastStartTime + 1;
+      // New start time - events starting later must go at or below ALL previously assigned lanes
+      // This ensures strict chronological ordering: earlier events always appear in earlier rows
+      minLaneForNextStartTime = maxLaneUsedSoFar + 1;
       lastStartTime = event.startTime;
-      maxLaneUsedAtLastStartTime = minLaneForNextStartTime; // Reset for this new start time
       searchStartLane = minLaneForNextStartTime;
     } else if (event.startTime === lastStartTime) {
       // Same start time - allow searching from lane 2 (not constrained by minLaneForNextStartTime)
@@ -142,10 +141,8 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
       lanes[lane] = eventEnd;
     }
     
-    // Track the maximum lane used at the current start time for chronological ordering
-    if (event.startTime === lastStartTime) {
-      maxLaneUsedAtLastStartTime = Math.max(maxLaneUsedAtLastStartTime, lane);
-    }
+    // Track the maximum lane used across ALL events for chronological ordering
+    maxLaneUsedSoFar = Math.max(maxLaneUsedSoFar, lane);
     
     return { ...event, lane };
   });
