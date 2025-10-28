@@ -76,6 +76,7 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
   let minLaneForNextStartTime = 0;
   let lastStartTime = -1;
   let maxLaneUsedSoFar = 1; // Track the highest lane used across ALL events processed
+  let minLaneForSameStartTime = 2; // Track min lane for events at the current start time
   
   return sorted.map((event) => {
     const eventEnd = event.startTime + event.duration;
@@ -119,10 +120,11 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
       minLaneForNextStartTime = highestOccupiedLane + 1;
       lastStartTime = event.startTime;
       searchStartLane = Math.max(2, minLaneForNextStartTime);
+      minLaneForSameStartTime = searchStartLane; // Reset for new start time batch
     } else if (event.startTime === lastStartTime) {
-      // Same start time - can search from lane 2 to pack efficiently
-      // but never go below minLaneForNextStartTime if it was already set higher
-      searchStartLane = Math.max(2, minLaneForNextStartTime);
+      // Same start time - must start at or below previous event at this time
+      // This ensures longer-duration events (sorted first) appear above shorter ones
+      searchStartLane = minLaneForSameStartTime;
     } else {
       // Earlier start time (shouldn't happen due to sort)
       searchStartLane = minLaneForNextStartTime;
@@ -149,6 +151,11 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
     
     // Track the maximum lane used across all events
     maxLaneUsedSoFar = Math.max(maxLaneUsedSoFar, lane);
+    
+    // Update minimum lane for next event at same start time
+    if (event.startTime === lastStartTime) {
+      minLaneForSameStartTime = lane + 1;
+    }
     
     return { ...event, lane };
   });
