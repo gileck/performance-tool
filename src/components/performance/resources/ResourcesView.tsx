@@ -291,7 +291,7 @@ export function ResourcesView(props: ResourcesViewProps) {
                 ))}
               </svg>
               <div>
-                {slices.map((s, i) => (
+                {[...slices].sort((a, b) => b.value - a.value).map((s, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginBottom: '4px' }}>
                     <span style={{ width: '10px', height: '10px', backgroundColor: s.color, display: 'inline-block' }} />
                     <span>{s.label}</span>
