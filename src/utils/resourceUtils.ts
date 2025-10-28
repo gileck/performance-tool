@@ -3,34 +3,7 @@ import type { PerformanceEntry, PerformanceData, ResourceExtras } from '../types
 export function getResourceExtras(name: string, siteModels?: PerformanceData['siteModels']): ResourceExtras {
   const extras: ResourceExtras = {};
   try {
-    const staticPrefix = 'https://static.parastorage.com';
-    if (name.startsWith(staticPrefix)) {
-      // File subtype
-      extras.resource_subtype = 'File';
-      try {
-        const u = new URL(name);
-        const pathSegs = u.pathname.split('/').filter(Boolean);
-        const fileName = (pathSegs[pathSegs.length - 1] || '').trim();
-        // file_type is the first segment after the host
-        if (pathSegs.length >= 1) {
-          extras.file_type = pathSegs[0];
-          if (extras.file_type === 'services' && pathSegs.length >= 2) {
-            // service is the segment after 'services'
-            extras.service = pathSegs[1];
-          }
-        }
-        if (fileName) {
-          extras.file_name = fileName;
-          const dotIdx = fileName.lastIndexOf('.');
-          if (dotIdx > 0 && dotIdx < fileName.length - 1) {
-            extras.file_extension = fileName.substring(dotIdx + 1).toLowerCase();
-          }
-        }
-      } catch {}
-      return extras;
-    }
-
-    // Site API subtype
+    // Check if it's an API first (before file check)
     const base = siteModels?.publicModel?.externalBaseUrl;
     if (base) {
       const variants: string[] = [];
@@ -67,6 +40,62 @@ export function getResourceExtras(name: string, siteModels?: PerformanceData['si
           return extras;
         }
       }
+    }
+
+    // Check if it's a File by file extension
+    const fileExtensionPattern = /\.(js|css|woff2?|ttf|otf|eot|svg|png|jpg|jpeg|gif|webp|ico|json|map|txt|xml|html|htm|pdf|zip|gz|wasm)(\?.*)?$/i;
+    const hasFileExtension = fileExtensionPattern.test(name);
+    
+    if (hasFileExtension) {
+      extras.resource_subtype = 'File';
+      
+      try {
+        const u = new URL(name);
+        const pathSegs = u.pathname.split('/').filter(Boolean);
+        const fileName = (pathSegs[pathSegs.length - 1] || '').trim();
+        
+        // Extract file name and extension
+        if (fileName) {
+          extras.file_name = fileName;
+          const dotIdx = fileName.lastIndexOf('.');
+          if (dotIdx > 0 && dotIdx < fileName.length - 1) {
+            const extWithQuery = fileName.substring(dotIdx + 1);
+            // Remove query params from extension
+            extras.file_extension = extWithQuery.split('?')[0].toLowerCase();
+          }
+        }
+        
+        // Extract service based on URL patterns
+        const hostname = u.hostname;
+        
+        // Pattern 1: https://static.parastorage.com
+        if (name.startsWith('https://static.parastorage.com')) {
+          if (pathSegs.length >= 1) {
+            extras.file_type = pathSegs[0];
+            
+            if (extras.file_type === 'unpkg') {
+              // For unpkg, service is 'unpkg'
+              extras.service = 'unpkg';
+            } else if (extras.file_type === 'services' && pathSegs.length >= 2) {
+              // For services path, extract service name
+              extras.service = pathSegs[1];
+            } else {
+              // For other paths under static.parastorage.com
+              extras.service = extras.file_type;
+            }
+          }
+        }
+        // Pattern 2: https://[APP_ID].wixappcloud.com/browser/assets
+        else if (hostname.endsWith('.wixappcloud.com') && u.pathname.startsWith('/browser/assets')) {
+          // Extract APP_ID (everything before first dot)
+          const appId = hostname.split('.')[0];
+          extras.service = appId;
+        }
+        // Pattern 3: Other domains
+        else {
+          extras.service = 'other';
+        }
+      } catch {}
     }
   } catch {}
   return extras;
