@@ -103,27 +103,20 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
       return { ...event, lane: 1 };
     }
     
-    // Determine the starting lane to search from
-    let searchStartLane = 2; // Default: start from lane 2 (navigation uses 0-1)
-    
+    // Update min lane for new start times to enforce chronological ordering
     if (event.startTime > lastStartTime) {
-      // New start time - events starting later must go at or below ALL previously assigned lanes
-      // This ensures strict chronological ordering: earlier events always appear in earlier rows
+      // New start time - MUST start at or below the max lane used so far
       minLaneForNextStartTime = maxLaneUsedSoFar + 1;
       lastStartTime = event.startTime;
-      searchStartLane = minLaneForNextStartTime;
     } else if (event.startTime === lastStartTime) {
-      // Same start time - allow searching from lane 2 (not constrained by minLaneForNextStartTime)
-      // This lets longer-duration events that were sorted first grab earlier lanes
-      searchStartLane = 2;
-    } else {
-      // Earlier start time (shouldn't happen with our sort, but handle it)
-      searchStartLane = minLaneForNextStartTime;
+      // Same start time - can try to find available lanes starting from lane 2
+      // but still respects occupied lanes
+      minLaneForNextStartTime = 2;
     }
     
-    // Find the first (topmost) available lane, starting from searchStartLane
+    // Find the first available lane starting from minLaneForNextStartTime
     let lane = -1;
-    for (let i = searchStartLane; i < lanes.length; i++) {
+    for (let i = minLaneForNextStartTime; i < lanes.length; i++) {
       if (lanes[i] <= event.startTime) {
         lane = i;
         lanes[i] = eventEnd;
@@ -131,17 +124,16 @@ export function calculateLanePositions(events: PerformanceEntry[]): EventWithPos
       }
     }
     
-    // If no available lane found in the valid range, create a new one at the bottom
+    // If no available lane found, create a new one
     if (lane === -1) {
-      lane = Math.max(lanes.length, searchStartLane);
-      // Ensure lanes array is big enough
+      lane = Math.max(lanes.length, minLaneForNextStartTime);
       while (lanes.length <= lane) {
         lanes.push(0);
       }
       lanes[lane] = eventEnd;
     }
     
-    // Track the maximum lane used across ALL events for chronological ordering
+    // Track the maximum lane used for chronological ordering
     maxLaneUsedSoFar = Math.max(maxLaneUsedSoFar, lane);
     
     return { ...event, lane };
