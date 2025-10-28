@@ -300,12 +300,14 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
           />
         )}
 
-        {/* Details Panel */}
-        <EventDetailsPanel
-          selectedEvent={selectedEvent}
-          onClose={() => setSelectedEvent(null)}
-          siteModels={data.siteModels}
-        />
+        {/* Details Panel - Only render when an event is selected */}
+        {selectedEvent && (
+          <EventDetailsPanel
+            selectedEvent={selectedEvent}
+            onClose={() => setSelectedEvent(null)}
+            siteModels={data.siteModels}
+          />
+        )}
       </div>
 
       {/* Hover Tooltip */}
