@@ -95,6 +95,17 @@ export function processEvents(events: PerformanceEntry[], ssrTimeOffset: number)
         // Add navigation timing phases as synthetic events
         const phases = extractNavigationPhases(event);
         combinedEvents.push(...phases);
+
+        // Add a zero-duration TTFB milestone marker at responseStart
+        const nav = event as any;
+        if (typeof nav.responseStart === 'number') {
+          combinedEvents.push({
+            name: 'TTFB',
+            entryType: 'ttfb',
+            startTime: nav.responseStart,
+            duration: 0,
+          } as any);
+        }
       } else {
         combinedEvents.push(event);
       }

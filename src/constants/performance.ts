@@ -10,6 +10,7 @@ export const EVENT_TYPE_COLORS: Record<string, string> = {
   'longtask': '#AA96DA',
   'visibility-state': '#FCBAD3',
   'largest-contentful-paint': '#FF8C42',
+  'ttfb': '#5CC8FF',
   'first-input': '#6BCF7F',
   'layout-shift': '#FB6376',
   'SSR': '#A78BFA',

@@ -84,6 +84,19 @@ export function TimelineView(props: TimelineViewProps) {
 
   const toPixels = (time: number) => timeToPixels(time, bounds, zoomLevel, panOffset);
 
+  const getDisplayLabel = (event: PerformanceEntry) => {
+    // Abbreviate common milestones
+    if (event.entryType === 'paint') {
+      if (event.name === 'first-contentful-paint') return 'FCP';
+      if (event.name === 'first-paint') return 'FP';
+    }
+    if (event.entryType === 'largest-contentful-paint') return 'LCP';
+    if (event.entryType === 'resource') {
+      return getDisplayResourceName(event.name, siteModels?.publicModel?.externalBaseUrl);
+    }
+    return event.name;
+  };
+
   // Calculate the total height needed based on max lane
   const maxLane = eventsWithPositions.reduce((max, event) => Math.max(max, event.lane), 0);
   const timelineHeight = Math.max(200, calculateEventPosition(maxLane) + 50); // Add padding at bottom
@@ -204,7 +217,7 @@ export function TimelineView(props: TimelineViewProps) {
               if (width < 30) return '';
               const maxChars = Math.floor(width / 6);
               if (maxChars < 5) return '';
-              const raw = event.entryType === 'resource' ? getDisplayResourceName(event.name, siteModels?.publicModel?.externalBaseUrl) : event.name;
+              const raw = getDisplayLabel(event);
               return raw.length > maxChars ? raw.substring(0, maxChars - 3) + '...' : raw;
             };
 
@@ -238,7 +251,7 @@ export function TimelineView(props: TimelineViewProps) {
                   transform: hoveredEvent === event ? 'scale(1.05)' : 'scale(1)',
                   zIndex: hoveredEvent === event ? 100 : 1,
                 }}
-                title={event.entryType === 'resource' ? getDisplayResourceName(event.name, siteModels?.publicModel?.externalBaseUrl) : event.name}
+                  title={event.entryType === 'resource' ? getDisplayResourceName(event.name, siteModels?.publicModel?.externalBaseUrl) : event.name}
               >
                 {getDisplayText()}
                 {hoveredEvent === event && (
@@ -307,7 +320,7 @@ export function TimelineView(props: TimelineViewProps) {
                   }}
                   title={event.entryType === 'resource' ? getDisplayResourceName(event.name, siteModels?.publicModel?.externalBaseUrl) : event.name}
                 >
-                  {event.entryType === 'resource' ? getDisplayResourceName(event.name, siteModels?.publicModel?.externalBaseUrl) : event.name}
+                  {getDisplayLabel(event)}
                 </div>
                 {/* Line */}
                 <div

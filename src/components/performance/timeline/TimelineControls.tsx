@@ -1,27 +1,25 @@
-import type { PerformanceEntry } from '../../../types/performance';
+import type { PerformanceEntry, PerformanceData, TimelineBounds } from '../../../types/performance';
 import { getEventColor } from '../../../utils/timelineUtils';
 import { getEffectiveType } from '../../../utils/resourceUtils';
 import { formatTime } from '../../../utils/formatters';
-import { MIN_ZOOM, MAX_ZOOM } from '../../../constants/performance';
 
 interface TimelineControlsProps {
-  // Data
   processedEvents: PerformanceEntry[];
   eventTypes: Array<{ type: string; count: number }>;
   standaloneMarkNames: string[];
   timelineFilteredEvents: PerformanceEntry[];
   timelineMilestoneEvents: PerformanceEntry[];
-  timelineBounds: { min: number; max: number };
-  siteModels?: any;
-  
-  // State
-  timelineFilters: Set<string>;
+  timelineBounds: TimelineBounds;
+  siteModels?: PerformanceData['siteModels'];
+
+  timelineEventFilters: Set<string>;
+  milestoneFilters: Set<string>;
   selectedMarkNames: Set<string>;
   zoomLevel: number;
   showFilterDropdown: boolean;
-  
-  // Actions
-  onFilterToggle: (type: string) => void;
+
+  onEventFilterToggle: (type: string) => void;
+  onMilestoneFilterToggle: (type: string) => void;
   onSelectAllFilters: () => void;
   onClearAllFilters: () => void;
   onMarkNameToggle: (markName: string) => void;
@@ -29,6 +27,7 @@ interface TimelineControlsProps {
   onClearAllMarkNames: () => void;
   onZoomChange: (delta: number) => void;
   onResetZoom: () => void;
+
   setShowFilterDropdown: (show: boolean) => void;
 }
 
@@ -41,11 +40,13 @@ export function TimelineControls(props: TimelineControlsProps) {
     timelineMilestoneEvents,
     timelineBounds,
     siteModels,
-    timelineFilters,
+    timelineEventFilters,
+    milestoneFilters,
     selectedMarkNames,
     zoomLevel,
     showFilterDropdown,
-    onFilterToggle,
+    onEventFilterToggle,
+    onMilestoneFilterToggle,
     onSelectAllFilters,
     onClearAllFilters,
     onMarkNameToggle,
@@ -55,6 +56,40 @@ export function TimelineControls(props: TimelineControlsProps) {
     onResetZoom,
     setShowFilterDropdown,
   } = props;
+
+  // Separate event types into timeline events and milestone markers
+  const milestoneTypes = ['paint', 'largest-contentful-paint', 'ttfb'];
+  const timelineEventTypes = eventTypes.filter(({ type }) => !milestoneTypes.includes(type));
+  const milestoneEventTypes = eventTypes.filter(({ type }) => milestoneTypes.includes(type));
+
+  const handleSelectAll = () => {
+    // Select all timeline event types
+    timelineEventTypes.forEach(({ type }) => {
+      if (!timelineEventFilters.has(type)) {
+        onEventFilterToggle(type);
+      }
+    });
+    // Select all milestone types
+    milestoneEventTypes.forEach(({ type }) => {
+      if (!milestoneFilters.has(type)) {
+        onMilestoneFilterToggle(type);
+      }
+    });
+    // Select all mark names
+    standaloneMarkNames.forEach((markName) => {
+      if (!selectedMarkNames.has(markName)) {
+        onMarkNameToggle(markName);
+      }
+    });
+  };
+
+  const handleSelectAllMarks = () => {
+    standaloneMarkNames.forEach((markName) => {
+      if (!selectedMarkNames.has(markName)) {
+        onMarkNameToggle(markName);
+      }
+    });
+  };
 
   return (
     <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -79,10 +114,7 @@ export function TimelineControls(props: TimelineControlsProps) {
           }}
         >
           <span>
-            {timelineFilters.has('all') 
-              ? `All (${processedEvents.length})`
-              : `${timelineFilters.size} selected`
-            }
+            {timelineEventFilters.size + milestoneFilters.size + selectedMarkNames.size} selected
           </span>
           <span style={{ marginLeft: '8px' }}>▼</span>
         </button>
@@ -98,8 +130,8 @@ export function TimelineControls(props: TimelineControlsProps) {
             borderRadius: '6px',
             padding: '8px',
             zIndex: 1000,
-            minWidth: '250px',
-            maxHeight: '400px',
+            minWidth: '280px',
+            maxHeight: '500px',
             overflow: 'auto',
             boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
           }}>
@@ -112,7 +144,7 @@ export function TimelineControls(props: TimelineControlsProps) {
               borderBottom: '1px solid #444',
             }}>
               <button
-                onClick={onSelectAllFilters}
+                onClick={handleSelectAll}
                 style={{
                   flex: 1,
                   padding: '4px 8px',
@@ -143,32 +175,20 @@ export function TimelineControls(props: TimelineControlsProps) {
               </button>
             </div>
 
-            {/* All option */}
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 8px',
-                cursor: 'pointer',
-                borderRadius: '4px',
-                fontSize: '13px',
-                backgroundColor: timelineFilters.has('all') ? '#444' : 'transparent',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={timelineFilters.has('all')}
-                onChange={() => onFilterToggle('all')}
-                style={{ cursor: 'pointer' }}
-              />
-              <span>All ({processedEvents.length})</span>
-            </label>
+            {/* Timeline Events Section */}
+            <div style={{
+              fontSize: '12px',
+              fontWeight: 'bold',
+              padding: '6px 8px',
+              color: '#aaa',
+              backgroundColor: '#2a2a2a',
+              borderRadius: '4px',
+              marginBottom: '8px',
+            }}>
+              Timeline Events
+            </div>
 
-            <div style={{ height: '1px', backgroundColor: '#444', margin: '8px 0' }} />
-
-            {/* Individual event types */}
-            {eventTypes.map(({ type, count }) => (
+            {timelineEventTypes.map(({ type, count }) => (
               <label
                 key={type}
                 style={{
@@ -179,13 +199,13 @@ export function TimelineControls(props: TimelineControlsProps) {
                   cursor: 'pointer',
                   borderRadius: '4px',
                   fontSize: '13px',
-                  backgroundColor: timelineFilters.has(type) ? '#444' : 'transparent',
+                  backgroundColor: timelineEventFilters.has(type) ? '#444' : 'transparent',
                 }}
               >
                 <input
                   type="checkbox"
-                  checked={timelineFilters.has(type)}
-                  onChange={() => onFilterToggle(type)}
+                  checked={timelineEventFilters.has(type)}
+                  onChange={() => onEventFilterToggle(type)}
                   style={{ cursor: 'pointer' }}
                 />
                 <div
@@ -201,18 +221,77 @@ export function TimelineControls(props: TimelineControlsProps) {
               </label>
             ))}
 
-            {/* Mark Names Filter */}
-            {(timelineFilters.has('all') || timelineFilters.has('mark')) && standaloneMarkNames.length > 0 && (
+            {/* Milestone Markers Section */}
+            {milestoneEventTypes.length > 0 && (
               <>
-                <div style={{ height: '1px', backgroundColor: '#444', margin: '8px 0' }} />
+                <div style={{ height: '1px', backgroundColor: '#444', margin: '12px 0' }} />
                 
                 <div style={{
                   fontSize: '12px',
                   fontWeight: 'bold',
                   padding: '6px 8px',
                   color: '#aaa',
+                  backgroundColor: '#2a2a2a',
+                  borderRadius: '4px',
+                  marginBottom: '8px',
                 }}>
-                  Filter Marks:
+                  Milestone Markers
+                </div>
+
+                {milestoneEventTypes.map(({ type, count }) => {
+                  const displayName = type === 'largest-contentful-paint' ? 'LCP' : 
+                                     type === 'paint' ? 'Paint (FP/FCP)' : 
+                                     type.toUpperCase();
+                  return (
+                    <label
+                      key={type}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 8px',
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                        backgroundColor: milestoneFilters.has(type) ? '#444' : 'transparent',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={milestoneFilters.has(type)}
+                        onChange={() => onMilestoneFilterToggle(type)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <div
+                        style={{
+                          width: '2px',
+                          height: '16px',
+                          backgroundColor: getEventColor(type),
+                          border: '1px solid rgba(0,0,0,0.3)',
+                        }}
+                      />
+                      <span>{displayName} ({count})</span>
+                    </label>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Mark Names Filter */}
+            {standaloneMarkNames.length > 0 && (
+              <>
+                <div style={{ height: '1px', backgroundColor: '#444', margin: '12px 0' }} />
+                
+                <div style={{
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  padding: '6px 8px',
+                  color: '#aaa',
+                  backgroundColor: '#2a2a2a',
+                  borderRadius: '4px',
+                  marginBottom: '8px',
+                }}>
+                  Mark Names
                 </div>
 
                 <div style={{
@@ -225,7 +304,7 @@ export function TimelineControls(props: TimelineControlsProps) {
                   paddingRight: '8px',
                 }}>
                   <button
-                    onClick={onSelectAllMarkNames}
+                    onClick={handleSelectAllMarks}
                     style={{
                       flex: 1,
                       padding: '4px 8px',
@@ -255,27 +334,6 @@ export function TimelineControls(props: TimelineControlsProps) {
                     Clear Marks
                   </button>
                 </div>
-
-                <label
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '6px 8px',
-                    cursor: 'pointer',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    backgroundColor: selectedMarkNames.has('all') ? '#444' : 'transparent',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedMarkNames.has('all')}
-                    onChange={() => onMarkNameToggle('all')}
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <span>All Marks ({standaloneMarkNames.length})</span>
-                </label>
 
                 <div style={{ maxHeight: '200px', overflow: 'auto' }}>
                   {standaloneMarkNames.map(markName => (
@@ -387,7 +445,7 @@ export function TimelineControls(props: TimelineControlsProps) {
             const filteredCount = timelineFilteredEvents.filter(e => getEffectiveType(e, siteModels) === type).length;
             const milestoneCount = timelineMilestoneEvents.filter(e => getEffectiveType(e, siteModels) === type).length;
             const totalCount = filteredCount + milestoneCount;
-            const isMilestone = type === 'paint' || type === 'largest-contentful-paint';
+            const isMilestone = milestoneTypes.includes(type);
             
             if (totalCount === 0) return null;
             return (
@@ -430,4 +488,3 @@ export function TimelineControls(props: TimelineControlsProps) {
     </div>
   );
 }
-

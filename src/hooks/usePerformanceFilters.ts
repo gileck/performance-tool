@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import type { TabType, ResourceViewTab, SortDirection } from '../types/performance';
 
 interface FilterState {
-  // Timeline filters
-  timelineFilters: Set<string>;
+  // Timeline filters - separate for events and milestones
+  timelineEventFilters: Set<string>;
+  milestoneFilters: Set<string>;
   selectedMarkNames: Set<string>;
   
   // Table filters
@@ -35,7 +36,8 @@ interface FilterState {
 }
 
 interface FilterActions {
-  setTimelineFilters: (filters: Set<string>) => void;
+  setTimelineEventFilters: (filters: Set<string>) => void;
+  setMilestoneFilters: (filters: Set<string>) => void;
   setSelectedMarkNames: (names: Set<string>) => void;
   setTableFilters: (filters: Set<string>) => void;
   setVisibleColumns: (columns: Set<string>) => void;
@@ -56,7 +58,8 @@ interface FilterActions {
   setZoomLevel: (level: number) => void;
   setPanOffset: (offset: number) => void;
   // Helper functions
-  toggleTimelineFilter: (type: string) => void;
+  toggleTimelineEventFilter: (type: string) => void;
+  toggleMilestoneFilter: (type: string) => void;
   selectAllTimelineFilters: () => void;
   clearAllTimelineFilters: () => void;
   toggleMarkName: (markName: string) => void;
@@ -84,8 +87,10 @@ interface FilterDropdowns {
 }
 
 export function usePerformanceFilters(): [FilterState, FilterActions, FilterDropdowns] {
-  const [timelineFilters, setTimelineFilters] = useState<Set<string>>(new Set(['all']));
-  const [selectedMarkNames, setSelectedMarkNames] = useState<Set<string>>(new Set(['all']));
+  // Initialize with all types enabled by default
+  const [timelineEventFilters, setTimelineEventFilters] = useState<Set<string>>(new Set());
+  const [milestoneFilters, setMilestoneFilters] = useState<Set<string>>(new Set());
+  const [selectedMarkNames, setSelectedMarkNames] = useState<Set<string>>(new Set());
   const [tableFilters, setTableFilters] = useState<Set<string>>(new Set(['all']));
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     new Set(['name', 'entryType', 'startTime', 'duration'])
@@ -119,8 +124,11 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
       const saved = localStorage.getItem('performance-tool:filters');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.timelineFilters)) {
-          setTimelineFilters(new Set(parsed.timelineFilters));
+        if (Array.isArray(parsed.timelineEventFilters)) {
+          setTimelineEventFilters(new Set(parsed.timelineEventFilters));
+        }
+        if (Array.isArray(parsed.milestoneFilters)) {
+          setMilestoneFilters(new Set(parsed.milestoneFilters));
         }
         if (Array.isArray(parsed.selectedMarkNames)) {
           setSelectedMarkNames(new Set(parsed.selectedMarkNames));
@@ -195,7 +203,8 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
     if (!settingsLoaded) return;
     try {
       const payload = {
-        timelineFilters: Array.from(timelineFilters),
+        timelineEventFilters: Array.from(timelineEventFilters),
+        milestoneFilters: Array.from(milestoneFilters),
         selectedMarkNames: Array.from(selectedMarkNames),
         tableFilters: Array.from(tableFilters),
         visibleColumns: Array.from(visibleColumns),
@@ -222,7 +231,8 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
     }
   }, [
     settingsLoaded,
-    timelineFilters,
+    timelineEventFilters,
+    milestoneFilters,
     selectedMarkNames,
     tableFilters,
     visibleColumns,
@@ -245,7 +255,8 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
   ]);
 
   const state: FilterState = {
-    timelineFilters,
+    timelineEventFilters,
+    milestoneFilters,
     selectedMarkNames,
     tableFilters,
     visibleColumns,
@@ -268,54 +279,60 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
     settingsLoaded,
   };
 
-  // Toggle helpers
-  const toggleTimelineFilter = (type: string) => {
-    const newFilters = new Set(timelineFilters);
-    if (type === 'all') {
-      setTimelineFilters(new Set(['all']));
-    } else {
-      newFilters.delete('all');
+  // Toggle helpers - simple: checked = shown
+  const toggleTimelineEventFilter = (type: string) => {
+    setTimelineEventFilters(prev => {
+      const newFilters = new Set(prev);
       if (newFilters.has(type)) {
         newFilters.delete(type);
-        if (newFilters.size === 0) newFilters.add('all');
       } else {
         newFilters.add(type);
       }
-      setTimelineFilters(newFilters);
-    }
+      return newFilters;
+    });
+  };
+
+  const toggleMilestoneFilter = (type: string) => {
+    setMilestoneFilters(prev => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(type)) {
+        newFilters.delete(type);
+      } else {
+        newFilters.add(type);
+      }
+      return newFilters;
+    });
   };
 
   const selectAllTimelineFilters = () => {
-    setTimelineFilters(new Set(['all']));
+    // This will be called with all types from the UI
+    // For now, just a placeholder - UI will handle it
   };
 
   const clearAllTimelineFilters = () => {
-    setTimelineFilters(new Set(['all']));
-    setSelectedMarkNames(new Set(['all']));
+    setTimelineEventFilters(new Set());
+    setMilestoneFilters(new Set());
+    setSelectedMarkNames(new Set());
   };
 
   const toggleMarkName = (markName: string) => {
-    const newMarks = new Set(selectedMarkNames);
-    if (markName === 'all') {
-      setSelectedMarkNames(new Set(['all']));
-    } else {
-      newMarks.delete('all');
+    setSelectedMarkNames(prev => {
+      const newMarks = new Set(prev);
       if (newMarks.has(markName)) {
         newMarks.delete(markName);
-        if (newMarks.size === 0) newMarks.add('all');
       } else {
         newMarks.add(markName);
       }
-      setSelectedMarkNames(newMarks);
-    }
+      return newMarks;
+    });
   };
 
   const selectAllMarkNames = () => {
-    setSelectedMarkNames(new Set(['all']));
+    // Placeholder - UI will handle setting all mark names
   };
 
   const clearAllMarkNames = () => {
-    setSelectedMarkNames(new Set(['all']));
+    setSelectedMarkNames(new Set());
   };
 
   const toggleTableFilter = (type: string) => {
@@ -389,7 +406,8 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
   };
 
   const actions: FilterActions = {
-    setTimelineFilters,
+    setTimelineEventFilters,
+    setMilestoneFilters,
     setSelectedMarkNames,
     setTableFilters,
     setVisibleColumns,
@@ -410,7 +428,8 @@ export function usePerformanceFilters(): [FilterState, FilterActions, FilterDrop
     setZoomLevel,
     setPanOffset,
     // Helper functions
-    toggleTimelineFilter,
+    toggleTimelineEventFilter,
+    toggleMilestoneFilter,
     selectAllTimelineFilters,
     clearAllTimelineFilters,
     toggleMarkName,

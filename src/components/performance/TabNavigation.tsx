@@ -10,6 +10,7 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
     { id: 'timeline', label: 'Timeline' },
     { id: 'table', label: 'Events Table' },
     { id: 'resources', label: 'Resources' },
+    { id: 'insights', label: 'Insights' },
     { id: 'settings', label: 'Settings' },
   ];
 

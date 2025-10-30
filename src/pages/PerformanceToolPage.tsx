@@ -10,6 +10,7 @@ import { TimelineView } from '../components/performance/timeline/TimelineView';
 import { TimelineControls } from '../components/performance/timeline/TimelineControls';
 import { TableView } from '../components/performance/table/TableView';
 import { ResourcesView } from '../components/performance/resources/ResourcesView';
+import { InsightsView } from '../components/performance/insights/InsightsView';
 import { SettingsView } from '../components/performance/SettingsView';
 import { calculateTimelineBounds, pixelsToTime, getEventColor } from '../utils/timelineUtils';
 import { getEffectiveType } from '../utils/resourceUtils';
@@ -48,7 +49,7 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
     const urlTab = params.get('tab') as TabType | null;
     const urlResourceView = params.get('resourceView') as ResourceViewTab | null;
     
-    if (urlTab && (urlTab === 'timeline' || urlTab === 'table' || urlTab === 'resources' || urlTab === 'settings')) {
+    if (urlTab && (urlTab === 'timeline' || urlTab === 'table' || urlTab === 'resources' || urlTab === 'insights' || urlTab === 'settings')) {
       if (urlTab !== activeTab) {
         filterActions.setActiveTab(urlTab);
       }
@@ -81,7 +82,8 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
   const eventData = useEventProcessing({
     data,
     ssrTimeOffset: filters.ssrTimeOffset,
-    timelineFilters: filters.timelineFilters,
+    timelineEventFilters: filters.timelineEventFilters,
+    milestoneFilters: filters.milestoneFilters,
     selectedMarkNames: filters.selectedMarkNames,
     tableFilters: filters.tableFilters,
     tableSearchTerm: filters.tableSearchTerm,
@@ -168,11 +170,13 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
               timelineMilestoneEvents={eventData.timelineMilestoneEvents}
               timelineBounds={timelineBounds}
               siteModels={data.siteModels}
-              timelineFilters={filters.timelineFilters}
+              timelineEventFilters={filters.timelineEventFilters}
+              milestoneFilters={filters.milestoneFilters}
               selectedMarkNames={filters.selectedMarkNames}
               zoomLevel={filters.zoomLevel}
               showFilterDropdown={filterDropdowns.showTimelineFilterDropdown}
-              onFilterToggle={filterActions.toggleTimelineFilter}
+              onEventFilterToggle={filterActions.toggleTimelineEventFilter}
+              onMilestoneFilterToggle={filterActions.toggleMilestoneFilter}
               onSelectAllFilters={filterActions.selectAllTimelineFilters}
               onClearAllFilters={filterActions.clearAllTimelineFilters}
               onMarkNameToggle={filterActions.toggleMarkName}
@@ -273,6 +277,13 @@ export function PerformanceToolPage({ data }: { data: PerformanceData }) {
             onResourceViewTabChange={filterActions.setResourceViewTab}
             onEventSelect={setSelectedEvent}
             siteModels={data.siteModels}
+          />
+        )}
+
+        {/* Insights View */}
+        {activeTab === 'insights' && (
+          <InsightsView
+            processedEvents={eventData.processedEvents}
           />
         )}
 

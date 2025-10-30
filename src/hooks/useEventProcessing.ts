@@ -17,7 +17,8 @@ interface EventProcessingResult {
 interface ProcessingOptions {
   data: PerformanceData;
   ssrTimeOffset: number;
-  timelineFilters: Set<string>;
+  timelineEventFilters: Set<string>;
+  milestoneFilters: Set<string>;
   selectedMarkNames: Set<string>;
   tableFilters: Set<string>;
   tableSearchTerm: string;
@@ -31,7 +32,8 @@ export function useEventProcessing(options: ProcessingOptions): EventProcessingR
   const {
     data,
     ssrTimeOffset,
-    timelineFilters,
+    timelineEventFilters,
+    milestoneFilters,
     selectedMarkNames,
     tableFilters,
     tableSearchTerm,
@@ -99,9 +101,11 @@ export function useEventProcessing(options: ProcessingOptions): EventProcessingR
       eventsWithDuration = eventsWithDuration.filter(e => e.startTime <= graphEndTime);
     }
     
-    if (timelineFilters.has('all')) return eventsWithDuration;
-    return eventsWithDuration.filter(e => timelineFilters.has(getEffectiveType(e, data.siteModels)));
-  }, [processedEvents, timelineFilters, graphEndTime, showNegativeTimestamps, minDurationMs, resourceDomainFilters, data.siteModels]);
+    // Simple filter: if the type is checked, show it; if not, hide it
+    // If no filters are selected, show nothing
+    if (timelineEventFilters.size === 0) return [];
+    return eventsWithDuration.filter(e => timelineEventFilters.has(getEffectiveType(e, data.siteModels)));
+  }, [processedEvents, timelineEventFilters, graphEndTime, showNegativeTimestamps, minDurationMs, resourceDomainFilters, data.siteModels]);
 
   // Timeline: Get paint/milestone events separately
   const timelineMilestoneEvents = useMemo(() => {
@@ -109,7 +113,7 @@ export function useEventProcessing(options: ProcessingOptions): EventProcessingR
       if (!showNegativeTimestamps && e.startTime < 0) return false;
       if (e.duration > 0) return false;
       
-      if (e.entryType === 'paint' || e.entryType === 'largest-contentful-paint') {
+      if (e.entryType === 'paint' || e.entryType === 'largest-contentful-paint' || e.entryType === 'ttfb') {
         return true;
       }
       
@@ -129,20 +133,24 @@ export function useEventProcessing(options: ProcessingOptions): EventProcessingR
       milestones = milestones.filter(e => e.startTime <= graphEndTime);
     }
     
-    let filtered = milestones;
-    if (!timelineFilters.has('all')) {
-      filtered = filtered.filter(e => timelineFilters.has(getEffectiveType(e, data.siteModels)));
-    }
-    
-    if (!selectedMarkNames.has('all')) {
-      filtered = filtered.filter(e => {
-        if (e.entryType !== 'mark') return true;
+    // Filter by milestone type (paint, LCP, TTFB)
+    let filtered = milestones.filter(e => {
+      const effectiveType = getEffectiveType(e, data.siteModels);
+      // For paint/LCP/TTFB, check milestone filters
+      if (effectiveType === 'paint' || effectiveType === 'largest-contentful-paint' || effectiveType === 'ttfb') {
+        return milestoneFilters.has(effectiveType);
+      }
+      // For marks, check mark name filters
+      if (e.entryType === 'mark') {
+        // If no mark names selected, show nothing
+        if (selectedMarkNames.size === 0) return false;
         return selectedMarkNames.has(e.name);
-      });
-    }
+      }
+      return false;
+    });
     
     return filtered;
-  }, [processedEvents, timelineFilters, selectedMarkNames, graphEndTime, showNegativeTimestamps, data.siteModels]);
+  }, [processedEvents, milestoneFilters, selectedMarkNames, graphEndTime, showNegativeTimestamps, data.siteModels]);
 
   // Table: Filter events (includes ALL events)
   const tableFilteredEvents = useMemo(() => {

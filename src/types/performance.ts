@@ -28,7 +28,7 @@ export interface PerformanceData {
   };
 }
 
-export type TabType = 'timeline' | 'table' | 'resources' | 'settings';
+export type TabType = 'timeline' | 'table' | 'resources' | 'insights' | 'settings';
 export type ResourceViewTab = 'all' | 'services' | 'pie';
 export type SortDirection = 'asc' | 'desc';
 
